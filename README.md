@@ -32,7 +32,7 @@ Audie is built on a modular architecture with specialized sub-agents:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/username/audie-meta-agent.git
+   git clone https://github.com/GEITechCompany/audie-meta-agent.git
    cd audie-meta-agent
    ```
 
