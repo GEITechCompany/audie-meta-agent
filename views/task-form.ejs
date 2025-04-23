@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 d-none d-md-block sidebar bg-light">
+        <div class="text-center py-4">
+          <h3>Audie</h3>
+          <p class="text-muted">Meta-Agent AI</p>
+        </div>
+        <ul class="nav flex-column">
+          <li class="nav-item">
+            <a class="nav-link" href="/">
+              <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/tasks">
+              <i class="bi bi-check2-square"></i> Tasks
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/estimates">
+              <i class="bi bi-file-earmark-text"></i> Estimates & Invoices
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/clients">
+              <i class="bi bi-people"></i> Clients
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+      <!-- Main Content -->
+      <main class="col-md-10 ms-sm-auto px-md-4 main-content">
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+          <h1 class="h2"><%= isNew ? 'New Task' : 'Edit Task' %></h1>
+          <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="/tasks" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-left"></i> Back to Tasks
+            </a>
+          </div>
+        </div>
+        
+        <!-- Task Form -->
+        <div class="card">
+          <div class="card-body">
+            <form id="taskForm" method="POST" action="<%= isNew ? '/api/tasks' : '/api/tasks/' + task.id %>">
+              <% if (!isNew) { %>
+                <input type="hidden" name="_method" value="PUT">
+              <% } %>
+              
+              <div class="mb-3">
+                <label for="taskTitle" class="form-label">Title *</label>
+                <input type="text" class="form-control" id="taskTitle" name="title" value="<%= task.title || '' %>" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="taskDescription" class="form-label">Description</label>
+                <textarea class="form-control" id="taskDescription" name="description" rows="3"><%= task.description || '' %></textarea>
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="taskStatus" class="form-label">Status</label>
+                  <select class="form-select" id="taskStatus" name="status">
+                    <option value="pending" <%= (task.status === 'pending' || !task.status) ? 'selected' : '' %>>Pending</option>
+                    <option value="in_progress" <%= task.status === 'in_progress' ? 'selected' : '' %>>In Progress</option>
+                    <option value="completed" <%= task.status === 'completed' ? 'selected' : '' %>>Completed</option>
+                    <option value="cancelled" <%= task.status === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+                  </select>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="taskPriority" class="form-label">Priority</label>
+                  <select class="form-select" id="taskPriority" name="priority">
+                    <option value="low" <%= task.priority === 'low' ? 'selected' : '' %>>Low</option>
+                    <option value="medium" <%= (task.priority === 'medium' || !task.priority) ? 'selected' : '' %>>Medium</option>
+                    <option value="high" <%= task.priority === 'high' ? 'selected' : '' %>>High</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="taskDueDate" class="form-label">Due Date</label>
+                  <input type="date" class="form-control" id="taskDueDate" name="due_date" value="<%= task.due_date || '' %>">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="taskAssignedTo" class="form-label">Assigned To</label>
+                  <input type="text" class="form-control" id="taskAssignedTo" name="assigned_to" value="<%= task.assigned_to || '' %>">
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="taskClient" class="form-label">Client</label>
+                <select class="form-select" id="taskClient" name="client_id">
+                  <option value="">-- None --</option>
+                  <!-- Client options would be populated dynamically -->
+                </select>
+              </div>
+              
+              <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                <a href="/tasks" class="btn btn-secondary me-md-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                  <%= isNew ? 'Create Task' : 'Save Changes' %>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/task-form.js"></script>
+</body>
+</html> 
