@@ -14,6 +14,7 @@ const { securityHeaders, staticContentHeaders } = require('./middleware/security
 const { csrfToken, csrfProtection } = require('./middleware/csrfMiddleware');
 const apiLoggerMiddleware = require('./middleware/apiLoggerMiddleware');
 const schedule = require('node-schedule');
+const { initializeInvoiceJobs } = require('./cron/invoiceJobs');
 
 // Check environment variables
 if (!process.env.PORT) {
@@ -118,6 +119,9 @@ const setupScheduledJobs = () => {
       logger.error(`Error running token cleanup job: ${error.message}`);
     }
   });
+  
+  // Initialize invoice-related cron jobs
+  initializeInvoiceJobs();
 };
 
 // Initialize database and start server

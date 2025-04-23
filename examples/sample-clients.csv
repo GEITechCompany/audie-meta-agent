@@ -1,0 +1,11 @@
+Name,Email,Phone,Address,Notes
+John Doe,john.doe@example.com,(555) 123-4567,"123 Main St, Anytown, CA 94001","Important client - Web design project"
+Jane Smith,jane.smith@example.com,(555) 234-5678,"456 Oak Ave, Somewhere, NY 10001","New client - Logo design"
+Acme Corporation,info@acmecorp.example.com,(555) 987-6543,"789 Corporate Blvd, Business City, TX 75001","Large account - Ongoing contract"
+Michael Johnson,michael.j@example.com,(555) 345-6789,"101 Pine St, Anytown, CA 94002","Referral from John Doe"
+TechStart Inc.,contact@techstart.example.com,(555) 876-5432,"202 Innovation Way, Tech City, WA 98001","Startup - Limited budget"
+Sarah Williams,sarah.w@example.com,(555) 456-7890,"303 Maple Dr, Somewhere, NY 10002","Graphic design project"
+Robert Brown,robert.b@example.com,(555) 567-8901,"404 Cedar Ln, Anytown, CA 94003","Marketing consultation"
+Global Enterprises,info@globalent.example.com,(555) 765-4321,"505 Global Plaza, Business City, TX 75002","International client - Multiple projects"
+Emily Davis,emily.d@example.com,(555) 678-9012,"606 Birch St, Somewhere, NY 10003","Web maintenance client"
+David Wilson,david.w@example.com,(555) 789-0123,"707 Spruce Ave, Anytown, CA 94004","Recurring monthly retainer" 

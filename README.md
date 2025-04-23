@@ -182,6 +182,63 @@ const validation = ApiTestUtils.validateResponseFormat(realResponse, mockRespons
 
 The API test utilities help ensure that all API integrations fail gracefully and provide consistent user experiences even when external services are unavailable.
 
+## API Testing
+
+### Client API Tests
+
+The project includes automated tests for the client API endpoints. These tests verify that all client-related API functionality is working correctly, including:
+
+- Creating clients
+- Retrieving client lists with pagination
+- Getting client details with related task and invoice statistics
+- Updating clients
+- Getting client tasks and invoices
+- Deleting clients
+
+#### Running the Tests
+
+To run the client API tests:
+
+1. Start the API server:
+   ```
+   npm run dev
+   ```
+
+2. In a separate terminal, run the test script:
+   ```
+   src/tests/api/run-client-tests.sh
+   ```
+
+#### Test Configuration
+
+The test script sets default environment variables, but you can customize these by:
+
+1. Creating a `.env.test` file in the project root
+2. Setting any of these variables:
+   ```
+   API_BASE_URL="http://localhost:3000/api"
+   TEST_USER_EMAIL="admin@example.com"
+   TEST_USER_PASSWORD="password123"
+   DISABLE_CSRF_FOR_TESTS="true"
+   HANDLE_CSRF="false"
+   ```
+
+#### Troubleshooting API Tests
+
+Common issues when running API tests:
+
+1. **CSRF Errors**: If you see CSRF validation errors, make sure:
+   - `DISABLE_CSRF_FOR_TESTS=true` is set in your `.env` file
+   - The API server has been restarted to apply this change
+
+2. **Authentication Failures**: Verify that:
+   - The test user credentials are correct
+   - The user has admin permissions to access client endpoints
+
+3. **Response Format Mismatch**: If the tests expect different response formats:
+   - Check if the API response structure has changed
+   - Update the test file at `src/tests/api/client-endpoints.test.js`
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

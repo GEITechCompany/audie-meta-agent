@@ -216,7 +216,28 @@ router.delete('/tasks/:id', apiLimiter, async (req, res) => {
 // Protect all admin routes with admin role authorization
 router.use('/clients', hasRole(['admin']));
 
-// Client routes will be added here
+// Import client controller
+const clientController = require('../controllers/ClientController');
+
+// Client routes
+router.get('/clients', apiLimiter, clientController.getAll);
+router.get('/clients/:id', apiLimiter, clientController.getById);
+router.post('/clients', apiLimiter, clientController.create);
+router.put('/clients/:id', apiLimiter, clientController.update);
+router.delete('/clients/:id', apiLimiter, clientController.delete);
+router.get('/clients/:id/tasks', apiLimiter, clientController.getTasks);
+router.get('/clients/:id/invoices', apiLimiter, clientController.getInvoices);
+
+// Import client data controller for import/export operations
+const clientDataController = require('../controllers/ClientDataController');
+
+// Client data import/export routes
+router.post('/clients/import/csv', clientDataController.uploadCSV(), clientDataController.importCSV);
+router.post('/clients/import/vcard', clientDataController.uploadVCard(), clientDataController.importVCard);
+router.get('/clients/export/csv', apiLimiter, clientDataController.exportCSV);
+router.get('/clients/:id/export/vcard', apiLimiter, clientDataController.exportVCard);
+router.get('/clients/export/vcard/all', apiLimiter, clientDataController.exportAllVCards);
+router.get('/clients/:id/report', apiLimiter, clientDataController.generateReport);
 
 // ==================== Estimate/Invoice Routes (Admin Only) ====================
 
@@ -224,6 +245,35 @@ router.use('/clients', hasRole(['admin']));
 router.use('/estimates', hasRole(['admin']));
 router.use('/invoices', hasRole(['admin']));
 
-// Estimate/Invoice routes will be added here
+// Import controllers
+const estimateController = require('../controllers/EstimateController');
+const invoiceController = require('../controllers/InvoiceController');
+
+// Estimate templates and generation routes
+router.get('/estimate-templates', apiLimiter, estimateController.getTemplates);
+router.post('/estimates/from-template', apiLimiter, estimateController.generateFromTemplate);
+router.post('/estimates/from-tasks', apiLimiter, estimateController.generateFromTasks);
+
+// Estimate routes
+router.get('/estimates', apiLimiter, estimateController.getAll);
+router.get('/estimates/:id', apiLimiter, estimateController.getById);
+router.post('/estimates', apiLimiter, estimateController.create);
+router.put('/estimates/:id', apiLimiter, estimateController.update);
+router.delete('/estimates/:id', apiLimiter, estimateController.delete);
+router.post('/estimates/:id/convert', apiLimiter, estimateController.convertToInvoice);
+router.patch('/estimates/:id/status', apiLimiter, estimateController.updateStatus);
+
+// Invoice routes
+router.get('/invoices', apiLimiter, invoiceController.getAll);
+router.get('/invoices/:id', apiLimiter, invoiceController.getById);
+router.post('/invoices', apiLimiter, invoiceController.create);
+router.put('/invoices/:id', apiLimiter, invoiceController.update);
+router.delete('/invoices/:id', apiLimiter, invoiceController.delete);
+router.get('/invoices/:id/payments', apiLimiter, invoiceController.getPayments);
+router.post('/invoices/:id/payments', apiLimiter, invoiceController.recordPayment);
+router.post('/invoices/:id/send', apiLimiter, invoiceController.sendToClient);
+router.post('/invoices/:id/mark-paid', apiLimiter, invoiceController.markAsPaid);
+router.get('/invoices-summary', apiLimiter, invoiceController.getSummary);
+router.get('/invoices-overdue', apiLimiter, invoiceController.getOverdue);
 
 module.exports = router; 

@@ -101,6 +101,11 @@ class Client {
     });
   }
 
+  // Alias for findById to match naming convention in other models
+  static async getById(id) {
+    return this.findById(id);
+  }
+
   // Find client by email
   static async findByEmail(email) {
     const db = getDatabase();

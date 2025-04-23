@@ -14,31 +14,38 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "setup:admin": "node src/scripts/createAdminUser.js",
-    "migrate:add-user-id": "node src/scripts/migration_add_user_id.js"
+    "migrate:add-user-id": "node src/scripts/migration_add_user_id.js",
+    "import:clients": "node src/utils/import-clients.js"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
     "dotenv": "^16.3.1",
-    "ejs": "^3.1.9",
+    "ejs": "^3.1.10",
     "express": "^4.18.2",
     "express-rate-limit": "^7.5.0",
     "fuzzysort": "^2.0.4",
     "googleapis": "^129.0.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
     "node-schedule": "^2.1.1",
     "nodemailer": "^6.9.7",
+    "puppeteer": "^24.7.1",
     "sqlite3": "^5.1.6",
     "uuid": "^11.1.0",
+    "vcards-js": "^2.10.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "jest-html-reporter": "^4.1.0",
     "nock": "^14.0.4",
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.1.10"
   }
 }

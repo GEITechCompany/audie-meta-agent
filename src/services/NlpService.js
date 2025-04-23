@@ -34,6 +34,22 @@ class NlpService {
       email_check: {
         keywords: ['check email', 'new email', 'emails', 'inbox', 'messages'],
         threshold: 0.6
+      },
+      client_create: {
+        keywords: ['add client', 'new client', 'create client', 'register client'],
+        threshold: 0.7
+      },
+      client_query: {
+        keywords: ['find client', 'search client', 'client details', 'client info'],
+        threshold: 0.7
+      },
+      client_update: {
+        keywords: ['update client', 'change client', 'modify client', 'edit client'],
+        threshold: 0.7
+      },
+      client_delete: {
+        keywords: ['delete client', 'remove client', 'cancel client', 'drop client'],
+        threshold: 0.7
       }
     };
 
@@ -116,7 +132,14 @@ class NlpService {
         /tag:? ([a-z]+)/i,
         /tagged as ([a-z]+)/i,
         /in category ([a-z]+)/i
-      ]
+      ],
+      
+      // Client patterns (new)
+      clientName: /(client|customer) ([A-Z][a-z]+ [A-Z][a-z]+)/i,
+      clientEmail: /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i,
+      clientPhone: /(\+\d{1,3}\s?)?(\(\d{1,3}\))?[-.\s]?\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/i,
+      clientAddress: /(\d+ [A-Za-z]+ [A-Za-z]+, [A-Za-z]+, [A-Za-z]{2} \d{5})/i,
+      clientNotes: /notes:? (.+)/i
     };
     
     // Conversation context storage
@@ -237,100 +260,86 @@ class NlpService {
   }
 
   /**
-   * Extract entities from message based on intent type
-   * @param {string} message - User message
-   * @param {string} intentType - Detected intent type
-   * @returns {object} Extracted entities
+   * Extract all relevant entities based on the intent type
+   * @param {string} text - The user message
+   * @param {string} intentType - The detected intent type
+   * @returns {Object} - Extracted entities
    */
-  extractEntities(message, intentType) {
-    // Base entity container
+  extractEntities(text, intentType) {
     const entities = {};
     
-    // Extract common entities for all intents
-    const dateEntity = this.extractDate(message);
-    if (dateEntity) entities.date = dateEntity;
-    
-    const timeEntity = this.extractTime(message);
-    if (timeEntity) entities.time = timeEntity;
-    
-    // Extract intent-specific entities
+    // Extract based on intent type
     switch (intentType) {
       case 'task_create':
-      case 'task_update':
-        // Extract task title - improved to handle more complex patterns
-        entities.title = this.extractTaskTitle(message);
-        
-        // Extract priority
-        const priorityEntity = this.extractPriority(message);
-        if (priorityEntity) entities.priority = priorityEntity;
-        
-        // Extract status for task update
-        if (intentType === 'task_update') {
-          const statusEntity = this.extractStatus(message);
-          if (statusEntity) entities.status = statusEntity;
-        }
-        
-        // Extract person assignee
-        const personEntity = this.extractPerson(message);
-        if (personEntity) entities.assignee = personEntity;
-        
-        // Extract location (new)
-        const locationEntity = this.extractLocation(message);
-        if (locationEntity) entities.location = locationEntity;
-        
-        // Extract category (new)
-        const categoryEntity = this.extractCategory(message);
-        if (categoryEntity) entities.category = categoryEntity;
-        
+        entities.taskTitle = this.extractTaskTitle(text);
+        entities.date = this.extractDate(text);
+        entities.time = this.extractTime(text);
+        entities.priority = this.extractPriority(text);
+        entities.status = this.extractStatus(text);
+        entities.person = this.extractPerson(text);
+        entities.location = this.extractLocation(text);
+        entities.category = this.extractCategory(text);
         break;
-      
+        
       case 'task_query':
-        // Extract filters
-        entities.filters = {};
-        
-        const statusEntity = this.extractStatus(message);
-        if (statusEntity) entities.filters.status = statusEntity;
-        
-        // Remove duplicate declaration and just use the existing priorityEntity variable
-        if (priorityEntity) entities.filters.priority = priorityEntity;
-        
-        // Remove duplicate declaration and just use the existing personEntity variable
-        if (personEntity) entities.filters.assignee = personEntity;
-        
-        // Add location filter (new)
-        if (locationEntity) entities.filters.location = locationEntity;
-        
-        // Add category filter (new) - use categoryEntity that was already declared
-        categoryEntity = this.extractCategory(message);
-        if (categoryEntity) entities.filters.category = categoryEntity;
-        
+        entities.taskTitle = this.extractTaskTitle(text);
+        entities.date = this.extractDate(text);
+        entities.priority = this.extractPriority(text);
+        entities.status = this.extractStatus(text);
+        entities.person = this.extractPerson(text);
+        entities.location = this.extractLocation(text);
+        entities.category = this.extractCategory(text);
         break;
-      
+        
+      case 'task_update':
+        entities.taskTitle = this.extractTaskTitle(text);
+        entities.date = this.extractDate(text);
+        entities.time = this.extractTime(text);
+        entities.priority = this.extractPriority(text);
+        entities.status = this.extractStatus(text);
+        entities.person = this.extractPerson(text);
+        entities.location = this.extractLocation(text);
+        entities.category = this.extractCategory(text);
+        break;
+        
       case 'schedule_query':
-        // Extract timeframe
-        entities.timeframe = this.extractTimeframe(message);
-        
-        // Add location for schedule queries (new)
-        const scheduleLocation = this.extractLocation(message);
-        if (scheduleLocation) entities.location = scheduleLocation;
-        
+        entities.date = this.extractDate(text);
+        entities.time = this.extractTime(text);
+        entities.person = this.extractPerson(text);
+        entities.location = this.extractLocation(text);
+        entities.category = this.extractCategory(text);
         break;
-      
+        
       case 'email_check':
-        // Extract count or filters for emails
-        const countMatch = message.match(/(\d+)\s+emails/i);
-        if (countMatch) {
-          entities.count = parseInt(countMatch[1], 10);
-        } else {
-          entities.count = 5; // Default
-        }
+        entities.date = this.extractDate(text);
+        entities.person = this.extractPerson(text);
+        entities.category = this.extractCategory(text);
+        break;
         
-        // Extract email sender if specified (new)
-        const fromMatch = message.match(/from ([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i);
-        if (fromMatch) {
-          entities.from = fromMatch[1];
-        }
+      case 'client_create':
+        entities.clientName = this.extractClientName(text);
+        entities.clientEmail = this.extractClientEmail(text);
+        entities.clientPhone = this.extractClientPhone(text);
+        entities.clientAddress = this.extractClientAddress(text);
+        entities.clientNotes = this.extractClientNotes(text);
+        break;
         
+      case 'client_query':
+        entities.clientName = this.extractClientName(text);
+        entities.clientEmail = this.extractClientEmail(text);
+        entities.clientPhone = this.extractClientPhone(text);
+        break;
+        
+      case 'client_update':
+        entities.clientName = this.extractClientName(text);
+        entities.clientEmail = this.extractClientEmail(text);
+        entities.clientPhone = this.extractClientPhone(text);
+        entities.clientAddress = this.extractClientAddress(text);
+        entities.clientNotes = this.extractClientNotes(text);
+        break;
+        
+      case 'client_delete':
+        entities.clientName = this.extractClientName(text);
         break;
     }
     
@@ -730,6 +739,71 @@ class NlpService {
       }
     }
     
+    return null;
+  }
+
+  /**
+   * Extract client name from text
+   * @param {string} text - The user message
+   * @returns {string|null} - Extracted client name or null
+   */
+  extractClientName(text) {
+    const match = text.match(this.entityPatterns.clientName);
+    if (match && match[2]) {
+      return match[2].trim();
+    }
+    return null;
+  }
+
+  /**
+   * Extract client email from text
+   * @param {string} text - The user message
+   * @returns {string|null} - Extracted client email or null
+   */
+  extractClientEmail(text) {
+    const match = text.match(this.entityPatterns.clientEmail);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return null;
+  }
+
+  /**
+   * Extract client phone from text
+   * @param {string} text - The user message
+   * @returns {string|null} - Extracted client phone or null
+   */
+  extractClientPhone(text) {
+    const match = text.match(this.entityPatterns.clientPhone);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return null;
+  }
+
+  /**
+   * Extract client address from text
+   * @param {string} text - The user message
+   * @returns {string|null} - Extracted client address or null
+   */
+  extractClientAddress(text) {
+    const match = text.match(this.entityPatterns.clientAddress);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return null;
+  }
+
+  /**
+   * Extract client notes from text
+   * @param {string} text - The user message
+   * @returns {string|null} - Extracted client notes or null
+   */
+  extractClientNotes(text) {
+    const match = text.match(this.entityPatterns.clientNotes);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
     return null;
   }
 }

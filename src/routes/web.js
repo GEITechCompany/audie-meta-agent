@@ -3,6 +3,7 @@ const router = express.Router();
 const Task = require('../models/Task');
 const logger = require('../utils/logger');
 const { authenticate } = require('../middleware/authMiddleware');
+const { hasRole } = require('../middleware/roleMiddleware');
 
 // Public Auth Routes
 router.get('/login', (req, res) => {
@@ -114,12 +115,28 @@ router.get('/estimates', (req, res) => {
   });
 });
 
-// Clients page (placeholder)
-router.get('/clients', (req, res) => {
+// Clients page
+router.get('/clients', authenticate, hasRole(['admin']), (req, res) => {
   res.render('clients', {
-    title: 'Audie - Clients',
-    page: 'clients',
-    user: req.user
+    user: req.user,
+    title: 'Clients'
+  });
+});
+
+// Client detail page
+router.get('/clients/:id', authenticate, hasRole(['admin']), (req, res) => {
+  res.render('client-detail', {
+    user: req.user,
+    title: 'Client Details',
+    clientId: req.params.id
+  });
+});
+
+// Client import/export route
+router.get('/client-import-export', authenticate, hasRole(['admin']), (req, res) => {
+  res.render('client-import-export', {
+    user: req.user,
+    title: 'Client Import/Export'
   });
 });
 

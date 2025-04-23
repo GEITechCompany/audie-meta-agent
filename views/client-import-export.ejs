@@ -1,0 +1,605 @@
+<%- include('partials/header', { title: 'Client Import/Export' }) %>
+
+<div class="container mt-4 mb-5">
+  <div class="row">
+    <div class="col-12">
+      <h1>Client Import/Export</h1>
+      <p class="lead">Manage client data with import and export tools</p>
+      
+      <div class="alert alert-info" id="status-message" style="display: none;">
+        <span id="status-text"></span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row mt-4">
+    <!-- Import Clients -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Import Clients</h4>
+        </div>
+        <div class="card-body">
+          <ul class="nav nav-tabs mb-3" id="importTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="csv-tab" data-bs-toggle="tab" data-bs-target="#csv-import" 
+                      type="button" role="tab" aria-controls="csv-import" aria-selected="true">CSV</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="vcard-tab" data-bs-toggle="tab" data-bs-target="#vcard-import" 
+                      type="button" role="tab" aria-controls="vcard-import" aria-selected="false">vCard</button>
+            </li>
+          </ul>
+          
+          <div class="tab-content" id="importTabsContent">
+            <!-- CSV Import -->
+            <div class="tab-pane fade show active" id="csv-import" role="tabpanel" aria-labelledby="csv-tab">
+              <form id="csv-import-form" enctype="multipart/form-data">
+                <div class="mb-3">
+                  <label for="csv-file" class="form-label">CSV File</label>
+                  <input type="file" class="form-control" id="csv-file" name="csv_file" accept=".csv" required>
+                  <div class="form-text">
+                    CSV format: name, email, phone, address, notes (first row is header)
+                  </div>
+                </div>
+                
+                <div class="mb-3 form-check">
+                  <input type="checkbox" class="form-check-input" id="skip-header" name="skip_header" checked>
+                  <label class="form-check-label" for="skip-header">Skip header row</label>
+                </div>
+                
+                <div class="mb-3 form-check">
+                  <input type="checkbox" class="form-check-input" id="update-existing" name="update_existing">
+                  <label class="form-check-label" for="update-existing">Update existing clients</label>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="delimiter" class="form-label">Delimiter</label>
+                  <select class="form-select" id="delimiter" name="delimiter">
+                    <option value="," selected>Comma (,)</option>
+                    <option value=";">Semicolon (;)</option>
+                    <option value="\t">Tab</option>
+                  </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="csv-import-btn">
+                  <i class="fas fa-file-import me-1"></i> Import CSV
+                </button>
+              </form>
+            </div>
+            
+            <!-- vCard Import -->
+            <div class="tab-pane fade" id="vcard-import" role="tabpanel" aria-labelledby="vcard-tab">
+              <form id="vcard-import-form" enctype="multipart/form-data">
+                <div class="mb-3">
+                  <label for="vcard-file" class="form-label">vCard File</label>
+                  <input type="file" class="form-control" id="vcard-file" name="vcard_file" accept=".vcf,.vcard" required>
+                  <div class="form-text">
+                    Upload a vCard (.vcf) file from your address book
+                  </div>
+                </div>
+                
+                <div class="mb-3 form-check">
+                  <input type="checkbox" class="form-check-input" id="vcard-update-existing" name="update_existing">
+                  <label class="form-check-label" for="vcard-update-existing">Update existing clients</label>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="vcard-import-btn">
+                  <i class="fas fa-address-card me-1"></i> Import vCard
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white">
+          <div class="small text-muted">
+            <i class="fas fa-info-circle me-1"></i>
+            Import will validate data and skip invalid records
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Export Clients -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Export Clients</h4>
+        </div>
+        <div class="card-body">
+          <ul class="nav nav-tabs mb-3" id="exportTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="export-csv-tab" data-bs-toggle="tab" data-bs-target="#csv-export" 
+                      type="button" role="tab" aria-controls="csv-export" aria-selected="true">CSV</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="export-vcard-tab" data-bs-toggle="tab" data-bs-target="#vcard-export" 
+                      type="button" role="tab" aria-controls="vcard-export" aria-selected="false">vCard</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="export-report-tab" data-bs-toggle="tab" data-bs-target="#report-export" 
+                      type="button" role="tab" aria-controls="report-export" aria-selected="false">Report</button>
+            </li>
+          </ul>
+          
+          <div class="tab-content" id="exportTabsContent">
+            <!-- CSV Export -->
+            <div class="tab-pane fade show active" id="csv-export" role="tabpanel" aria-labelledby="export-csv-tab">
+              <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="include-header" checked>
+                <label class="form-check-label" for="include-header">Include header row</label>
+              </div>
+              
+              <div class="mb-3">
+                <label for="export-delimiter" class="form-label">Delimiter</label>
+                <select class="form-select" id="export-delimiter">
+                  <option value="," selected>Comma (,)</option>
+                  <option value=";">Semicolon (;)</option>
+                  <option value="\t">Tab</option>
+                </select>
+              </div>
+              
+              <a href="/api/clients/export/csv" class="btn btn-success" id="csv-export-btn" target="_blank">
+                <i class="fas fa-file-csv me-1"></i> Export to CSV
+              </a>
+            </div>
+            
+            <!-- vCard Export -->
+            <div class="tab-pane fade" id="vcard-export" role="tabpanel" aria-labelledby="export-vcard-tab">
+              <p>Select export option:</p>
+              
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="vcard-export-type" id="export-all-vcards" value="all" checked>
+                  <label class="form-check-label" for="export-all-vcards">
+                    Export all clients as ZIP archive
+                  </label>
+                </div>
+                
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="vcard-export-type" id="export-single-vcard" value="single">
+                  <label class="form-check-label" for="export-single-vcard">
+                    Export single client
+                  </label>
+                </div>
+              </div>
+              
+              <div id="single-client-selector" style="display: none;">
+                <div class="mb-3">
+                  <label for="client-select" class="form-label">Select Client</label>
+                  <select class="form-select" id="client-select">
+                    <option value="">Loading clients...</option>
+                  </select>
+                </div>
+              </div>
+              
+              <a href="/api/clients/export/vcard/all" class="btn btn-success" id="vcard-export-btn" target="_blank">
+                <i class="fas fa-address-card me-1"></i> Export vCards
+              </a>
+            </div>
+            
+            <!-- Report Export -->
+            <div class="tab-pane fade" id="report-export" role="tabpanel" aria-labelledby="export-report-tab">
+              <div class="mb-3">
+                <label for="report-client-select" class="form-label">Select Client</label>
+                <select class="form-select" id="report-client-select" required>
+                  <option value="">Loading clients...</option>
+                </select>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label for="from-date" class="form-label">From Date</label>
+                  <input type="date" class="form-control" id="from-date">
+                </div>
+                <div class="col-md-6">
+                  <label for="to-date" class="form-label">To Date</label>
+                  <input type="date" class="form-control" id="to-date">
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="include-tasks-details">
+                  <label class="form-check-label" for="include-tasks-details">Include detailed task list</label>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="include-invoices-details">
+                  <label class="form-check-label" for="include-invoices-details">Include detailed invoice list</label>
+                </div>
+              </div>
+              
+              <button class="btn btn-success" id="report-generate-btn">
+                <i class="fas fa-file-alt me-1"></i> Generate Report
+              </button>
+              
+              <div class="mt-3" id="report-preview" style="display: none;">
+                <div class="card">
+                  <div class="card-header bg-light">
+                    <h5 class="mb-0">Report Preview</h5>
+                  </div>
+                  <div class="card-body">
+                    <pre id="report-json" class="p-3 bg-light" style="max-height: 300px; overflow-y: auto;"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white">
+          <div class="small text-muted">
+            <i class="fas fa-info-circle me-1"></i>
+            Export includes all client details
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Import Results Modal -->
+  <div class="modal fade" id="import-results" tabindex="-1" aria-labelledby="importResultsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="importResultsLabel">Import Results</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3" id="import-summary">
+            <div class="d-flex justify-content-between mb-1">
+              <div>Imported:</div>
+              <div id="imported-count">0</div>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <div>Skipped:</div>
+              <div id="skipped-count">0</div>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <div>Errors:</div>
+              <div id="errors-count">0</div>
+            </div>
+          </div>
+          
+          <div id="import-errors-container" style="display: none;">
+            <h6>Errors</h6>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered">
+                <thead>
+                  <tr>
+                    <th>Row/Index</th>
+                    <th>Error</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody id="import-errors">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Load clients for dropdowns
+  loadClients();
+  
+  // Set up event listeners
+  document.getElementById('csv-import-form').addEventListener('submit', importCSV);
+  document.getElementById('vcard-import-form').addEventListener('submit', importVCard);
+  document.getElementById('csv-export-btn').addEventListener('click', updateCSVExportUrl);
+  
+  document.querySelectorAll('input[name="vcard-export-type"]').forEach(radio => {
+    radio.addEventListener('change', toggleVCardExportOptions);
+  });
+  
+  document.getElementById('vcard-export-btn').addEventListener('click', updateVCardExportUrl);
+  document.getElementById('report-generate-btn').addEventListener('click', generateReport);
+  
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+});
+
+// Load client list
+function loadClients() {
+  fetch('/api/clients')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.data) {
+        populateClientDropdowns(data.data);
+      }
+    })
+    .catch(error => {
+      showStatusMessage('Error loading clients: ' + error.message, 'danger');
+    });
+}
+
+// Populate client dropdowns
+function populateClientDropdowns(clients) {
+  const clientSelect = document.getElementById('client-select');
+  const reportClientSelect = document.getElementById('report-client-select');
+  
+  clientSelect.innerHTML = '';
+  reportClientSelect.innerHTML = '';
+  
+  // Add placeholder
+  const placeholderOption = document.createElement('option');
+  placeholderOption.value = '';
+  placeholderOption.textContent = 'Select client...';
+  
+  clientSelect.appendChild(placeholderOption.cloneNode(true));
+  reportClientSelect.appendChild(placeholderOption.cloneNode(true));
+  
+  // Add clients
+  clients.forEach(client => {
+    const option = document.createElement('option');
+    option.value = client.id;
+    option.textContent = client.name;
+    
+    clientSelect.appendChild(option.cloneNode(true));
+    reportClientSelect.appendChild(option);
+  });
+}
+
+// Import CSV
+function importCSV(event) {
+  event.preventDefault();
+  
+  const form = document.getElementById('csv-import-form');
+  const formData = new FormData(form);
+  
+  // Update button state
+  const button = document.getElementById('csv-import-btn');
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Importing...';
+  
+  // Send request
+  fetch('/api/clients/import/csv', {
+    method: 'POST',
+    body: formData
+  })
+    .then(response => response.json())
+    .then(data => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-file-import me-1"></i> Import CSV';
+      
+      if (data.success) {
+        showStatusMessage('Import successful', 'success');
+        showImportResults(data.data);
+      } else {
+        showStatusMessage('Import failed: ' + data.message, 'danger');
+        showImportResults(data.data);
+      }
+    })
+    .catch(error => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-file-import me-1"></i> Import CSV';
+      showStatusMessage('Error importing CSV: ' + error.message, 'danger');
+    });
+}
+
+// Import vCard
+function importVCard(event) {
+  event.preventDefault();
+  
+  const form = document.getElementById('vcard-import-form');
+  const formData = new FormData(form);
+  
+  // Update button state
+  const button = document.getElementById('vcard-import-btn');
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Importing...';
+  
+  // Send request
+  fetch('/api/clients/import/vcard', {
+    method: 'POST',
+    body: formData
+  })
+    .then(response => response.json())
+    .then(data => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-address-card me-1"></i> Import vCard';
+      
+      if (data.success) {
+        showStatusMessage('Import successful', 'success');
+        showImportResults(data.data);
+      } else {
+        showStatusMessage('Import failed: ' + data.message, 'danger');
+        showImportResults(data.data);
+      }
+    })
+    .catch(error => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-address-card me-1"></i> Import vCard';
+      showStatusMessage('Error importing vCard: ' + error.message, 'danger');
+    });
+}
+
+// Update CSV Export URL
+function updateCSVExportUrl(event) {
+  const includeHeader = document.getElementById('include-header').checked;
+  const delimiter = document.getElementById('export-delimiter').value;
+  
+  let url = '/api/clients/export/csv?';
+  
+  if (!includeHeader) {
+    url += 'include_header=false&';
+  }
+  
+  if (delimiter !== ',') {
+    url += 'delimiter=' + encodeURIComponent(delimiter);
+  }
+  
+  // Remove trailing & or ? if present
+  url = url.replace(/[&?]$/, '');
+  
+  // Update the href and allow the click to continue
+  this.href = url;
+}
+
+// Toggle vCard export options
+function toggleVCardExportOptions() {
+  const exportType = document.querySelector('input[name="vcard-export-type"]:checked').value;
+  const singleClientSelector = document.getElementById('single-client-selector');
+  const exportBtn = document.getElementById('vcard-export-btn');
+  
+  if (exportType === 'single') {
+    singleClientSelector.style.display = 'block';
+    exportBtn.innerHTML = '<i class="fas fa-address-card me-1"></i> Export vCard';
+  } else {
+    singleClientSelector.style.display = 'none';
+    exportBtn.innerHTML = '<i class="fas fa-address-card me-1"></i> Export vCards';
+  }
+}
+
+// Update vCard Export URL
+function updateVCardExportUrl(event) {
+  const exportType = document.querySelector('input[name="vcard-export-type"]:checked').value;
+  
+  if (exportType === 'single') {
+    const clientId = document.getElementById('client-select').value;
+    
+    if (!clientId) {
+      event.preventDefault();
+      showStatusMessage('Please select a client', 'warning');
+      return;
+    }
+    
+    this.href = `/api/clients/${clientId}/export/vcard`;
+  } else {
+    this.href = '/api/clients/export/vcard/all';
+  }
+}
+
+// Generate Client Report
+function generateReport() {
+  const clientId = document.getElementById('report-client-select').value;
+  
+  if (!clientId) {
+    showStatusMessage('Please select a client', 'warning');
+    return;
+  }
+  
+  // Get report options
+  const fromDate = document.getElementById('from-date').value;
+  const toDate = document.getElementById('to-date').value;
+  const includeTasksDetails = document.getElementById('include-tasks-details').checked;
+  const includeInvoicesDetails = document.getElementById('include-invoices-details').checked;
+  
+  // Build URL
+  let url = `/api/clients/${clientId}/report?`;
+  
+  if (fromDate) {
+    url += `from_date=${fromDate}&`;
+  }
+  
+  if (toDate) {
+    url += `to_date=${toDate}&`;
+  }
+  
+  if (includeTasksDetails) {
+    url += 'include_tasks_details=true&';
+  }
+  
+  if (includeInvoicesDetails) {
+    url += 'include_invoices_details=true&';
+  }
+  
+  // Remove trailing & or ? if present
+  url = url.replace(/[&?]$/, '');
+  
+  // Update button state
+  const button = document.getElementById('report-generate-btn');
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+  
+  // Send request
+  fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-file-alt me-1"></i> Generate Report';
+      
+      if (data.success) {
+        // Display report
+        document.getElementById('report-preview').style.display = 'block';
+        document.getElementById('report-json').textContent = JSON.stringify(data.data, null, 2);
+      } else {
+        showStatusMessage('Error generating report: ' + data.message, 'danger');
+      }
+    })
+    .catch(error => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-file-alt me-1"></i> Generate Report';
+      showStatusMessage('Error generating report: ' + error.message, 'danger');
+    });
+}
+
+// Show import results modal
+function showImportResults(data) {
+  // Update counts
+  document.getElementById('imported-count').textContent = data.imported;
+  document.getElementById('skipped-count').textContent = data.skipped;
+  document.getElementById('errors-count').textContent = data.errors.length;
+  
+  // Update errors table
+  const errorsTable = document.getElementById('import-errors');
+  errorsTable.innerHTML = '';
+  
+  if (data.errors.length > 0) {
+    document.getElementById('import-errors-container').style.display = 'block';
+    
+    data.errors.forEach(error => {
+      const row = document.createElement('tr');
+      
+      const rowCell = document.createElement('td');
+      rowCell.textContent = error.row || error.index || '-';
+      row.appendChild(rowCell);
+      
+      const messageCell = document.createElement('td');
+      messageCell.textContent = error.message;
+      row.appendChild(messageCell);
+      
+      const dataCell = document.createElement('td');
+      dataCell.textContent = error.data ? JSON.stringify(error.data) : '-';
+      row.appendChild(dataCell);
+      
+      errorsTable.appendChild(row);
+    });
+  } else {
+    document.getElementById('import-errors-container').style.display = 'none';
+  }
+  
+  // Show modal
+  new bootstrap.Modal(document.getElementById('import-results')).show();
+  
+  // Reload clients list
+  loadClients();
+}
+
+// Show status message
+function showStatusMessage(message, type = 'info') {
+  const statusMessage = document.getElementById('status-message');
+  const statusText = document.getElementById('status-text');
+  
+  statusMessage.className = `alert alert-${type}`;
+  statusText.textContent = message;
+  statusMessage.style.display = 'block';
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    statusMessage.style.display = 'none';
+  }, 5000);
+}
+</script>
+
+<%- include('partials/footer') %> 

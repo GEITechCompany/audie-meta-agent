@@ -1,0 +1,610 @@
+<%- include('partials/header', {title: 'Invoices', page: 'invoices'}) %>
+
+<div class="container-fluid mt-4">
+  <div class="row">
+    <!-- Main Content -->
+    <main class="col-md-10 ms-auto px-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Invoices</h1>
+        <div>
+          <button class="btn btn-success me-2" id="createInvoiceBtn">
+            <i class="bi bi-plus-lg"></i> New Invoice
+          </button>
+          <button class="btn btn-outline-primary" id="convertEstimateBtn">
+            <i class="bi bi-arrow-left-right"></i> Convert Estimate
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <label for="statusFilter" class="form-label">Status</label>
+              <select class="form-select" id="statusFilter">
+                <option value="">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+                <option value="partial">Partially Paid</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="late">Late</option>
+                <option value="collection">Collection</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="clientFilter" class="form-label">Client</label>
+              <select class="form-select" id="clientFilter">
+                <option value="">All Clients</option>
+                <!-- Client options will be populated dynamically -->
+              </select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="dateRangeFilter" class="form-label">Date Range</label>
+              <select class="form-select" id="dateRangeFilter">
+                <option value="all">All Time</option>
+                <option value="current_month">Current Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="current_quarter">Current Quarter</option>
+                <option value="last_quarter">Last Quarter</option>
+                <option value="current_year">Current Year</option>
+                <option value="last_year">Last Year</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-3 d-flex align-items-end">
+              <button class="btn btn-primary w-100" id="applyFiltersBtn">
+                <i class="bi bi-funnel-fill"></i> Apply Filters
+              </button>
+            </div>
+          </div>
+          <div class="row custom-date-range d-none">
+            <div class="col-md-6 mb-3">
+              <label for="startDate" class="form-label">Start Date</label>
+              <input type="date" class="form-control" id="startDate">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="endDate" class="form-label">End Date</label>
+              <input type="date" class="form-control" id="endDate">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoices Summary -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title text-muted">Total Invoices</h6>
+              <h3 class="card-text" id="totalInvoicesCount">-</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title text-muted">Outstanding</h6>
+              <h3 class="card-text" id="outstandingAmount">-</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title text-muted">Overdue</h6>
+              <h3 class="card-text" id="overdueAmount">-</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title text-muted">Paid</h6>
+              <h3 class="card-text" id="paidAmount">-</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoices Table -->
+      <div class="card">
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Client</th>
+                  <th>Issue Date</th>
+                  <th>Due Date</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceTableBody">
+                <!-- Table rows will be populated dynamically -->
+                <tr class="table-row-placeholder">
+                  <td colspan="7" class="text-center py-4">Loading invoices...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="showing-entries">
+              Showing <span id="showingCount">0</span> of <span id="totalCount">0</span> invoices
+            </div>
+            <div class="pagination-controls">
+              <button class="btn btn-sm btn-outline-secondary me-2" id="prevPageBtn" disabled>
+                <i class="bi bi-chevron-left"></i> Previous
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" id="nextPageBtn" disabled>
+                Next <i class="bi bi-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recurring Invoices Section -->
+      <h2 class="mt-5 mb-4">Recurring Invoices</h2>
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-end mb-3">
+            <button class="btn btn-primary" id="createRecurringBtn">
+              <i class="bi bi-plus-lg"></i> New Recurring Invoice
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Client</th>
+                  <th>Frequency</th>
+                  <th>Amount</th>
+                  <th>Next Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recurringInvoiceTableBody">
+                <!-- Table rows will be populated dynamically -->
+                <tr class="table-row-placeholder">
+                  <td colspan="7" class="text-center py-4">Loading recurring invoices...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Invoice Create/Edit Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="invoiceModalLabel">Create Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="invoiceForm">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="client_id" class="form-label">Client *</label>
+              <select class="form-select" id="client_id" name="client_id" required>
+                <option value="">Select Client</option>
+                <!-- Client options will be populated dynamically -->
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="invoice_number" class="form-label">Invoice Number</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="invoice_number" name="invoice_number" readonly>
+                <button class="btn btn-outline-secondary" type="button" id="generateNumberBtn">Generate</button>
+              </div>
+              <small class="text-muted">Will be generated automatically if left blank</small>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="title" class="form-label">Invoice Title *</label>
+              <input type="text" class="form-control" id="title" name="title" required>
+            </div>
+            <div class="col-md-6">
+              <label for="status" class="form-label">Status</label>
+              <select class="form-select" id="status" name="status">
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+              </select>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="issue_date" class="form-label">Issue Date *</label>
+              <input type="date" class="form-control" id="issue_date" name="issue_date" required>
+            </div>
+            <div class="col-md-6">
+              <label for="due_date" class="form-label">Due Date *</label>
+              <input type="date" class="form-control" id="due_date" name="due_date" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+          </div>
+          
+          <h5 class="mt-4 mb-3">Line Items</h5>
+          <div class="table-responsive mb-3">
+            <table class="table table-bordered" id="lineItemsTable">
+              <thead>
+                <tr>
+                  <th style="width: 40%">Description</th>
+                  <th style="width: 15%">Quantity</th>
+                  <th style="width: 20%">Unit Price</th>
+                  <th style="width: 15%">Tax (%)</th>
+                  <th style="width: 20%">Amount</th>
+                  <th style="width: 10%">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="lineItemsTableBody">
+                <!-- Line items will be added dynamically -->
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="6">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addLineItemBtn">
+                      <i class="bi bi-plus-lg"></i> Add Line Item
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end">Subtotal:</td>
+                  <td colspan="2"><span id="subtotalAmount">$0.00</span></td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end">Tax:</td>
+                  <td colspan="2"><span id="taxAmount">$0.00</span></td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end"><strong>Total:</strong></td>
+                  <td colspan="2"><strong><span id="totalAmount">$0.00</span></strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+            </div>
+            <div class="col-md-6">
+              <label for="terms" class="form-label">Terms</label>
+              <textarea class="form-control" id="terms" name="terms" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="saveAndSendBtn">Save & Send</button>
+        <button type="button" class="btn btn-primary" id="saveInvoiceBtn">Save Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recurring Invoice Modal -->
+<div class="modal fade" id="recurringInvoiceModal" tabindex="-1" aria-labelledby="recurringInvoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="recurringInvoiceModalLabel">Create Recurring Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="recurringInvoiceForm">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="recurring_client_id" class="form-label">Client *</label>
+              <select class="form-select" id="recurring_client_id" name="client_id" required>
+                <option value="">Select Client</option>
+                <!-- Client options will be populated dynamically -->
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="recurring_title" class="form-label">Title *</label>
+              <input type="text" class="form-control" id="recurring_title" name="title" required>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="frequency" class="form-label">Frequency *</label>
+              <select class="form-select" id="frequency" name="frequency" required>
+                <option value="">Select Frequency</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="start_date" class="form-label">Start Date *</label>
+              <input type="date" class="form-control" id="start_date" name="start_date" required>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="end_date" class="form-label">End Date (Optional)</label>
+              <input type="date" class="form-control" id="end_date" name="end_date">
+              <small class="text-muted">Leave blank for indefinite recurring invoices</small>
+            </div>
+            <div class="col-md-6">
+              <label for="recurring_status" class="form-label">Status</label>
+              <select class="form-select" id="recurring_status" name="status">
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="recurring_description" class="form-label">Description</label>
+            <textarea class="form-control" id="recurring_description" name="description" rows="3"></textarea>
+          </div>
+          
+          <h5 class="mt-4 mb-3">Line Items</h5>
+          <div class="table-responsive mb-3">
+            <table class="table table-bordered" id="recurringLineItemsTable">
+              <thead>
+                <tr>
+                  <th style="width: 40%">Description</th>
+                  <th style="width: 15%">Quantity</th>
+                  <th style="width: 20%">Unit Price</th>
+                  <th style="width: 15%">Tax (%)</th>
+                  <th style="width: 20%">Amount</th>
+                  <th style="width: 10%">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recurringLineItemsTableBody">
+                <!-- Line items will be added dynamically -->
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="6">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addRecurringLineItemBtn">
+                      <i class="bi bi-plus-lg"></i> Add Line Item
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end">Subtotal:</td>
+                  <td colspan="2"><span id="recurringSubtotalAmount">$0.00</span></td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end">Tax:</td>
+                  <td colspan="2"><span id="recurringTaxAmount">$0.00</span></td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="text-end"><strong>Total:</strong></td>
+                  <td colspan="2"><strong><span id="recurringTotalAmount">$0.00</span></strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveRecurringInvoiceBtn">Save Recurring Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Convert Estimate Modal -->
+<div class="modal fade" id="convertEstimateModal" tabindex="-1" aria-labelledby="convertEstimateModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="convertEstimateModalLabel">Convert Estimate to Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="estimateSelect" class="form-label">Select Estimate</label>
+          <select class="form-select" id="estimateSelect">
+            <option value="">Select an approved estimate</option>
+            <!-- Estimates will be populated dynamically -->
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="convertDueDate" class="form-label">Due Date for Invoice</label>
+          <input type="date" class="form-control" id="convertDueDate">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmConvertBtn">Convert to Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="paymentForm">
+          <input type="hidden" id="payment_invoice_id" name="invoice_id">
+          <div class="mb-3">
+            <label for="invoice_details" class="form-label">Invoice</label>
+            <div id="invoice_details" class="form-control-plaintext"></div>
+          </div>
+          <div class="mb-3">
+            <label for="amount" class="form-label">Amount *</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" class="form-control" id="amount" name="amount" step="0.01" required>
+            </div>
+            <div class="form-text">
+              <span class="text-muted">Outstanding: $</span><span id="outstandingBalance">0.00</span>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="payment_method" class="form-label">Payment Method *</label>
+            <select class="form-select" id="payment_method" name="payment_method" required>
+              <option value="">Select Payment Method</option>
+              <!-- Payment methods will be populated dynamically -->
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="payment_date" class="form-label">Payment Date</label>
+            <input type="date" class="form-control" id="payment_date" name="payment_date">
+          </div>
+          <div class="mb-3">
+            <label for="reference" class="form-label">Reference/Transaction ID</label>
+            <input type="text" class="form-control" id="reference" name="reference">
+          </div>
+          <div class="mb-3">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="payment_notes" name="notes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="savePaymentBtn">Record Payment</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View Invoice Modal -->
+<div class="modal fade" id="viewInvoiceModal" tabindex="-1" aria-labelledby="viewInvoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewInvoiceModalLabel">Invoice Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="invoiceDetailContent">
+        <!-- Invoice details will be loaded here -->
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Loading invoice details...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="d-flex justify-content-between w-100">
+          <div>
+            <button type="button" class="btn btn-outline-danger me-2" id="deleteInvoiceBtn">Delete</button>
+          </div>
+          <div>
+            <button type="button" class="btn btn-success me-2" id="recordPaymentBtn">Record Payment</button>
+            <button type="button" class="btn btn-primary me-2" id="sendInvoiceBtn">Send to Client</button>
+            <button type="button" class="btn btn-outline-primary me-2" id="downloadPdfBtn">Download PDF</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View Payments Modal -->
+<div class="modal fade" id="viewPaymentsModal" tabindex="-1" aria-labelledby="viewPaymentsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewPaymentsModalLabel">Payment History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-4">
+          <h6>Invoice Details</h6>
+          <div id="paymentsInvoiceDetails" class="border p-3 rounded"></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Reference</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody">
+              <!-- Payments will be populated dynamically -->
+              <tr class="table-row-placeholder">
+                <td colspan="5" class="text-center py-4">Loading payment history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success me-2" id="addPaymentBtn">Add Payment</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Send Reminder Modal -->
+<div class="modal fade" id="sendReminderModal" tabindex="-1" aria-labelledby="sendReminderModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sendReminderModalLabel">Send Payment Reminder</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="reminderForm">
+          <input type="hidden" id="reminder_invoice_id" name="invoice_id">
+          <div class="mb-3">
+            <label for="reminder_template" class="form-label">Reminder Template</label>
+            <select class="form-select" id="reminder_template">
+              <option value="">Select Template</option>
+              <!-- Templates will be populated dynamically -->
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="reminder_subject" class="form-label">Subject</label>
+            <input type="text" class="form-control" id="reminder_subject" name="subject" required>
+          </div>
+          <div class="mb-3">
+            <label for="reminder_message" class="form-label">Message</label>
+            <textarea class="form-control" id="reminder_message" name="message" rows="6" required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="sendReminderBtn">Send Reminder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/invoice-manager.js"></script>
+
+<%- include('partials/footer') %> 
