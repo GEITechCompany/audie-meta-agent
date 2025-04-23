@@ -4,6 +4,8 @@ All notable changes to the Audie Meta-Agent project will be documented in this f
 
 ## [Unreleased]
 
+## [0.1.0] - 2023-04-22
+
 ### Added
 - Initial project structure
 - Meta-Agent core system
