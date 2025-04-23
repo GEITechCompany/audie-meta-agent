@@ -121,6 +121,67 @@ For production deployment:
    npm start
    ```
 
+## Testing
+
+The project uses Jest for unit and integration testing. Tests are located in the `tests` directory, organized by component type.
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npx jest tests/agents/InboxAgent.test.js
+
+# Run API failure and error handling tests
+npm run test:failures
+
+# Run tests with coverage report
+npm test -- --coverage
+```
+
+An HTML test report is generated at `test-report.html` after running the tests, providing a visual representation of test results.
+
+### InboxAgent Tests
+
+The InboxAgent has comprehensive tests that verify:
+
+- Email fetching with valid Gmail credentials
+- Fallback to mock emails when credentials are missing
+- Error handling for various Gmail API failures
+- Task extraction logic from both real and mock emails
+
+These tests ensure that the email integration is resilient and properly handles various API states including authentication failures and network errors.
+
+### API Testing Utilities
+
+The project includes a specialized test utility (`tests/utils/api-test-utils.js`) designed for API testing that provides:
+
+- Functions to simulate various API failures (auth errors, server errors, network issues)
+- Response format validation to ensure consistency between real and mock data
+- Comprehensive error path testing to verify fallback mechanisms
+- HTTP request mocking with nock
+
+Usage example:
+
+```javascript
+// Simulate a Gmail API authentication failure
+ApiTestUtils.simulateGmailAuthFailure(mockGoogleApi);
+
+// Verify fallback behavior works correctly
+const result = await ApiTestUtils.verifyFallbackBehavior(
+  apiFunction,     // Function that calls the API
+  setupFailure,    // Setup function for the failure
+  validateResult   // Validation function for the response
+);
+
+// Test response format consistency
+const validation = ApiTestUtils.validateResponseFormat(realResponse, mockResponse);
+```
+
+The API test utilities help ensure that all API integrations fail gracefully and provide consistent user experiences even when external services are unavailable.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

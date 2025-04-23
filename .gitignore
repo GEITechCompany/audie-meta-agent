@@ -17,6 +17,10 @@ logs/
 *.log
 npm-debug.log*
 
+# Testing
+coverage/
+test-report.html
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -1,1 +1,1 @@
-{"testEnvironment":"node","testMatch":["**/tests/**/*.test.js"],"collectCoverage":true,"coverageReporters":["text","lcov"],"coverageDirectory":"coverage"}
+{"testEnvironment":"node","testMatch":["**/tests/**/*.test.js"],"collectCoverage":true,"coverageReporters":["text","lcov","html"],"coverageDirectory":"coverage","reporters":["default",["jest-html-reporter",{"pageTitle":"Audie Meta-Agent Test Report","outputPath":"./test-report.html","includeFailureMsg":true,"includeSuiteFailure":true}]]}

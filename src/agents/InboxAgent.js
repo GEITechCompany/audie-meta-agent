@@ -1,6 +1,13 @@
-const logger = require('../utils/logger');
+// Core imports
+const { EventEmitter } = require('events');
 const { google } = require('googleapis');
+
+// Internal imports
+const logger = require('../utils/logger');
+const { getDatabase } = require('../database');
+const ApiMetricsService = require('../services/ApiMetricsService');
 const Task = require('../models/Task');
+const { getGmailApi } = require('../services/GmailService');
 
 /**
  * InboxAgent - Parses and processes emails for task creation
@@ -22,8 +29,13 @@ class InboxAgent {
       // This is a placeholder for the actual Gmail API setup
       // In a production app, this would use proper OAuth2 authentication
       
-      if (!process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET || !process.env.GMAIL_REDIRECT_URI) {
-        logger.warn('Missing Gmail API credentials in environment variables');
+      if (!process.env.GMAIL_API_KEY || !process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET) {
+        logger.warn('Gmail API credentials missing', {
+          metadata: {
+            source: this.name,
+            status: 'Missing credentials'
+          }
+        });
         return false;
       }
       
@@ -44,12 +56,33 @@ class InboxAgent {
         return true;
       } else {
         // Fall back to mock mode if no credentials
-        logger.warn('No Gmail credentials found, using mock email data');
+        logger.mockData('InboxAgent', 'No Gmail credentials found', {
+          component: 'InboxAgent.initialize',
+          requiredCredentials: ['GMAIL_REFRESH_TOKEN']
+        });
         this.gmail = null;
         return false;
       }
     } catch (error) {
-      logger.error(`Error initializing Gmail API: ${error.message}`);
+      logger.error(`${this.name} initialization failed: ${error.message}`, {
+        metadata: {
+          source: this.name,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+      
+      // Record API initialization error
+      await ApiMetricsService.recordApiCall({
+        endpoint: 'gmail/initialize',
+        method: 'INIT',
+        status: 'ERROR',
+        source: this.name,
+        is_mock: false,
+        error_type: error.name || 'InitializationError',
+        error_message: error.message
+      });
+      
       this.gmail = null;
       return false;
     }
@@ -61,48 +94,302 @@ class InboxAgent {
    * @returns {Promise<object>} Email check results
    */
   async checkEmails(params = { count: 5 }) {
+    const startTime = Date.now();
+    
     try {
       // Initialize Gmail if not already done
       if (!this.gmail && !(await this.initialize())) {
         // Fall back to mock data if initialization fails
+        logger.mockData('InboxAgent', 'Gmail API initialization failed', {
+          component: 'InboxAgent.checkEmails',
+          params
+        });
+        
+        // Record mock data usage in metrics
+        await ApiMetricsService.recordApiCall({
+          endpoint: 'gmail/messages/list',
+          method: 'GET',
+          status: 200, // Mock returns "success"
+          source: this.name,
+          is_mock: true,
+          duration: 0,
+          response_data: { 
+            resultSizeEstimate: params.count,
+            mockReason: 'initialization_failed'
+          }
+        });
+        
+        // Update daily summary for mock usage
+        await ApiMetricsService.updateDailySummary({
+          endpoint: 'gmail/messages/list',
+          mock_calls: 1
+        });
+        
         return this.getMockEmails(params);
       }
       
       // Query Gmail for unread messages
-      const response = await this.gmail.users.messages.list({
-        userId: 'me',
-        q: 'is:unread',
-        maxResults: params.count
-      });
+      let messageList;
+      try {
+        // Track API call start time for performance metrics
+        const apiStartTime = Date.now();
+        
+        const response = await this.gmail.users.messages.list({
+          userId: 'me',
+          q: 'is:unread',
+          maxResults: params.count
+        });
+        
+        // Calculate API call duration for metrics
+        const apiDuration = Date.now() - apiStartTime;
+        
+        // Log successful API call with metrics
+        logger.apiCall('gmail/messages.list', 200, apiDuration, {
+          mock: false,
+          metadata: {
+            resultCount: response.data.messages?.length || 0,
+            params
+          }
+        });
+        
+        // Record successful API call in metrics database
+        await ApiMetricsService.recordApiCall({
+          endpoint: 'gmail/messages/list',
+          method: 'GET',
+          status: 200,
+          source: this.name,
+          is_mock: false,
+          duration: apiDuration,
+          response_data: {
+            resultCount: response.data.messages?.length || 0,
+            resultSizeEstimate: response.data.resultSizeEstimate || 0
+          }
+        });
+        
+        // Update daily summary
+        await ApiMetricsService.updateDailySummary({
+          endpoint: 'gmail/messages/list',
+          successful_calls: 1,
+          real_calls: 1,
+          avg_duration: apiDuration,
+          max_duration: apiDuration,
+          min_duration: apiDuration
+        });
+        
+        messageList = response.data.messages || [];
+      } catch (error) {
+        // Log the API failure with details
+        logger.apiCall('gmail/messages.list', error.code || 500, null, {
+          error,
+          mock: false,
+          metadata: {
+            params,
+            tags: ['gmail', 'api_error']
+          }
+        });
+        
+        // Record failed API call in metrics
+        await ApiMetricsService.recordApiCall({
+          endpoint: 'gmail/messages/list',
+          method: 'GET',
+          status: error.code || 'ERROR',
+          source: this.name,
+          is_mock: false,
+          duration: Date.now() - apiStartTime,
+          error_type: error.name || 'APIError',
+          error_message: error.message
+        });
+        
+        // Update daily summary for failure
+        await ApiMetricsService.updateDailySummary({
+          endpoint: 'gmail/messages/list',
+          failed_calls: 1,
+          real_calls: 1
+        });
+        
+        // Record that we're using mock data after a failure
+        await ApiMetricsService.recordApiCall({
+          endpoint: 'gmail/messages/list',
+          method: 'GET',
+          status: 200, // Mock returns "success"
+          source: this.name,
+          is_mock: true,
+          duration: 0,
+          response_data: { 
+            resultSizeEstimate: params.count,
+            mockReason: 'api_error'
+          }
+        });
+        
+        // Update daily summary for mock usage
+        await ApiMetricsService.updateDailySummary({
+          endpoint: 'gmail/messages/list',
+          mock_calls: 1
+        });
+        
+        // Fall back to mock data
+        return this.getMockEmails(params);
+      }
       
-      const messageList = response.data.messages || [];
       const emails = [];
       
       // Fetch details for each message
       for (const message of messageList) {
-        const messageDetails = await this.gmail.users.messages.get({
-          userId: 'me',
-          id: message.id,
-          format: 'full'
-        });
-        
-        const parsedEmail = this.parseEmailMessage(messageDetails.data);
-        emails.push(parsedEmail);
+        try {
+          const detailStartTime = Date.now();
+          
+          const messageDetails = await this.gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          });
+          
+          const detailDuration = Date.now() - detailStartTime;
+          
+          // Log successful API call for message details
+          logger.apiCall(`gmail/messages.get/${message.id}`, 200, detailDuration, {
+            mock: false,
+            metadata: {
+              messageId: message.id
+            }
+          });
+          
+          // Record successful message details API call
+          await ApiMetricsService.recordApiCall({
+            endpoint: 'gmail/messages/get',
+            method: 'GET',
+            status: 200,
+            source: this.name,
+            is_mock: false,
+            duration: detailDuration,
+            request_data: { messageId: message.id },
+            response_data: { 
+              messageSize: JSON.stringify(messageDetails.data).length,
+              labelIds: messageDetails.data.labelIds
+            }
+          });
+          
+          // Update daily summary for message details
+          await ApiMetricsService.updateDailySummary({
+            endpoint: 'gmail/messages/get',
+            successful_calls: 1,
+            real_calls: 1,
+            avg_duration: detailDuration,
+            max_duration: detailDuration,
+            min_duration: detailDuration
+          });
+          
+          const parsedEmail = this.parseEmailMessage(messageDetails.data);
+          emails.push(parsedEmail);
+        } catch (error) {
+          // Log error fetching specific message
+          logger.apiCall(`gmail/messages.get/${message.id}`, error.code || 500, null, {
+            error,
+            mock: false,
+            metadata: {
+              messageId: message.id,
+              tags: ['gmail', 'api_error']
+            }
+          });
+          
+          // Record failed message details API call
+          await ApiMetricsService.recordApiCall({
+            endpoint: 'gmail/messages/get',
+            method: 'GET',
+            status: error.code || 'ERROR',
+            source: this.name,
+            is_mock: false,
+            duration: Date.now() - detailStartTime,
+            request_data: { messageId: message.id },
+            error_type: error.name || 'APIError',
+            error_message: error.message
+          });
+          
+          // Update daily summary for failed message details
+          await ApiMetricsService.updateDailySummary({
+            endpoint: 'gmail/messages/get',
+            failed_calls: 1,
+            real_calls: 1
+          });
+          
+          // Continue with other messages - don't abort entire operation for one failed message
+          continue;
+        }
       }
       
       // Process emails for potential tasks
       const tasks = await this.processEmailsForTasks(emails);
       
-      return {
+      // Calculate total duration for the entire operation
+      const totalDuration = Date.now() - startTime;
+      
+      // Create result object
+      const result = {
         message: this.formatEmailSummary(emails),
         emails,
         tasks,
         count: emails.length
       };
-    } catch (error) {
-      logger.error(`Error checking emails: ${error.message}`);
       
-      // Fall back to mock data on error
+      // Log the overall operation completion with performance metrics
+      logger.info(`Retrieved ${emails.length} emails from Gmail API`, {
+        metadata: {
+          source: 'api',
+          duration: totalDuration,
+          emailCount: emails.length,
+          taskCount: tasks.length,
+          component: 'InboxAgent.checkEmails'
+        }
+      });
+      
+      return result;
+    } catch (error) {
+      // Log any uncaught errors in the overall process
+      logger.error(`Error checking emails: ${error.message}`, {
+        metadata: {
+          source: 'api',
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          },
+          component: 'InboxAgent.checkEmails'
+        }
+      });
+      
+      // Record overall process error
+      await ApiMetricsService.recordApiCall({
+        endpoint: 'gmail/process',
+        method: 'PROCESS',
+        status: 'ERROR',
+        source: this.name,
+        is_mock: false,
+        duration: Date.now() - startTime,
+        error_type: error.name || 'ProcessError',
+        error_message: error.message
+      });
+      
+      // Record that we're using mock data after a process error
+      await ApiMetricsService.recordApiCall({
+        endpoint: 'gmail/messages/list',
+        method: 'GET',
+        status: 200, // Mock returns "success"
+        source: this.name,
+        is_mock: true,
+        duration: 0,
+        response_data: { 
+          resultSizeEstimate: params.count,
+          mockReason: 'process_error'
+        }
+      });
+      
+      // Update daily summary for mock usage
+      await ApiMetricsService.updateDailySummary({
+        endpoint: 'gmail/messages/list',
+        mock_calls: 1
+      });
+      
+      // Fall back to mock data
       return this.getMockEmails(params);
     }
   }
@@ -240,10 +527,38 @@ class InboxAgent {
    * @returns {Promise<number>} Count of unread emails
    */
   async getUnreadCount() {
+    const startTime = Date.now();
+    const endpoint = 'gmail/messages.list/count';
+    
     try {
       // Initialize Gmail if not already done
       if (!this.gmail && !(await this.initialize())) {
         // Return mock count if initialization fails
+        logger.mockData('InboxAgent', 'Gmail API initialization failed', {
+          component: 'InboxAgent.getUnreadCount'
+        });
+        
+        // Record mock API call metric
+        await ApiMetricsService.recordApiCall({
+          endpoint,
+          method: 'GET',
+          status: 500,
+          source: 'InboxAgent',
+          is_mock: true,
+          error_type: 'initialization_failed',
+          error_message: 'Gmail API initialization failed'
+        });
+        
+        // Update daily summary for this endpoint
+        await ApiMetricsService.updateDailySummary({
+          endpoint,
+          total_calls: 1,
+          successful_calls: 0,
+          failed_calls: 1,
+          mock_calls: 1,
+          real_calls: 0
+        });
+        
         return 3; // Mock count
       }
       
@@ -254,9 +569,78 @@ class InboxAgent {
         maxResults: 1
       });
       
-      return response.data.resultSizeEstimate || 0;
+      const duration = Date.now() - startTime;
+      const count = response.data.resultSizeEstimate || 0;
+      
+      // Log the successful API call
+      logger.apiCall('gmail/messages.list/count', 200, duration, {
+        mock: false,
+        metadata: {
+          count,
+          component: 'InboxAgent.getUnreadCount'
+        }
+      });
+      
+      // Record successful API call metric
+      await ApiMetricsService.recordApiCall({
+        endpoint,
+        method: 'GET',
+        status: 200,
+        source: 'InboxAgent',
+        is_mock: false,
+        duration,
+        response_data: { count }
+      });
+      
+      // Update daily summary for this endpoint
+      await ApiMetricsService.updateDailySummary({
+        endpoint,
+        total_calls: 1,
+        successful_calls: 1,
+        failed_calls: 0,
+        mock_calls: 0,
+        real_calls: 1,
+        avg_duration: duration,
+        max_duration: duration,
+        min_duration: duration
+      });
+      
+      return count;
     } catch (error) {
-      logger.error(`Error getting unread count: ${error.message}`);
+      const duration = Date.now() - startTime;
+      
+      // Log the API failure
+      logger.apiCall('gmail/messages.list/count', error.code || 500, null, {
+        error,
+        mock: false,
+        metadata: {
+          component: 'InboxAgent.getUnreadCount',
+          tags: ['gmail', 'api_error']
+        }
+      });
+      
+      // Record failed API call metric
+      await ApiMetricsService.recordApiCall({
+        endpoint,
+        method: 'GET',
+        status: error.code || 500,
+        source: 'InboxAgent',
+        is_mock: false,
+        duration,
+        error_type: error.name,
+        error_message: error.message
+      });
+      
+      // Update daily summary for this endpoint
+      await ApiMetricsService.updateDailySummary({
+        endpoint,
+        total_calls: 1,
+        successful_calls: 0,
+        failed_calls: 1,
+        mock_calls: 0,
+        real_calls: 1
+      });
+      
       return 3; // Mock count on error
     }
   }
@@ -266,8 +650,16 @@ class InboxAgent {
    * @param {object} params - Parameters for email check
    * @returns {object} Mock email data
    */
-  getMockEmails(params) {
-    logger.info(`Using mock email data with count ${params.count}`);
+  getMockEmails(params = { count: 5 }) {
+    const startTime = Date.now();
+    const endpoint = 'gmail/messages.list';
+    
+    // Log this mock data retrieval
+    logger.mockData('InboxAgent', 'Using mock email data', {
+      component: 'InboxAgent.getMockEmails',
+      count: params.count,
+      tags: ['fallback', 'mock_data']
+    });
     
     // Generate some mock emails
     const emails = [
@@ -322,6 +714,43 @@ class InboxAgent {
           source: 'email'
         };
       });
+    
+    // Calculate duration for metrics
+    const duration = Date.now() - startTime;
+    
+    // Record mock API call metric
+    ApiMetricsService.recordApiCall({
+      endpoint,
+      method: 'GET',
+      status: 200,
+      source: 'InboxAgent',
+      is_mock: true,
+      duration,
+      response_data: { count: limitedEmails.length }
+    }).catch(err => {
+      logger.error('Failed to record API metric', {
+        error: err,
+        component: 'InboxAgent.getMockEmails'
+      });
+    });
+    
+    // Update daily summary
+    ApiMetricsService.updateDailySummary({
+      endpoint,
+      total_calls: 1,
+      successful_calls: 1,
+      failed_calls: 0,
+      mock_calls: 1,
+      real_calls: 0,
+      avg_duration: duration,
+      max_duration: duration,
+      min_duration: duration
+    }).catch(err => {
+      logger.error('Failed to update API daily summary', {
+        error: err,
+        component: 'InboxAgent.getMockEmails'
+      });
+    });
     
     return {
       message: this.formatEmailSummary(limitedEmails),
