@@ -12,19 +12,26 @@
     "test:failures": "jest tests/agents/InboxAgent.failure.test.js --verbose",
     "test:api": "jest tests/agents/InboxAgent.failure.test.js --verbose --testNamePattern=\"API Failure\"",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "setup:admin": "node src/scripts/createAdminUser.js",
+    "migrate:add-user-id": "node src/scripts/migration_add_user_id.js"
   },
   "dependencies": {
     "axios": "^1.6.2",
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
     "googleapis": "^129.0.0",
+    "jsonwebtoken": "^9.0.2",
     "node-schedule": "^2.1.1",
     "nodemailer": "^6.9.7",
     "sqlite3": "^5.1.6",
+    "uuid": "^11.1.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {

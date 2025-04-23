@@ -2,19 +2,39 @@ const express = require('express');
 const router = express.Router();
 const Task = require('../models/Task');
 const logger = require('../utils/logger');
+const { authenticate } = require('../middleware/authMiddleware');
+
+// Public Auth Routes
+router.get('/login', (req, res) => {
+  res.render('login', {
+    title: 'Audie - Login',
+    page: 'login'
+  });
+});
+
+router.get('/register', (req, res) => {
+  res.render('register', {
+    title: 'Audie - Register',
+    page: 'register'
+  });
+});
+
+// Protected Routes (Authentication Required)
+router.use('/', authenticate);
 
 // Dashboard - Main interface
 router.get('/', async (req, res) => {
   try {
-    // Fetch tasks for the dashboard
-    const pendingTasks = await Task.findAll({ status: 'pending' });
-    const inProgressTasks = await Task.findAll({ status: 'in_progress' });
+    // Fetch tasks for the dashboard with user ID filter
+    const pendingTasks = await Task.findAllForUser(req.user.id, { status: 'pending' });
+    const inProgressTasks = await Task.findAllForUser(req.user.id, { status: 'in_progress' });
     
     res.render('dashboard', {
       title: 'Audie - Meta-Agent Dashboard',
       pendingTasks,
       inProgressTasks,
-      page: 'dashboard'
+      page: 'dashboard',
+      user: req.user
     });
   } catch (error) {
     logger.error(`Error loading dashboard: ${error.message}`);
@@ -28,13 +48,14 @@ router.get('/', async (req, res) => {
 // Tasks page
 router.get('/tasks', async (req, res) => {
   try {
-    // Fetch all tasks
-    const tasks = await Task.findAll();
+    // Fetch user's tasks
+    const tasks = await Task.findAllForUser(req.user.id);
     
     res.render('tasks', {
       title: 'Audie - Tasks',
       tasks,
-      page: 'tasks'
+      page: 'tasks',
+      user: req.user
     });
   } catch (error) {
     logger.error(`Error loading tasks page: ${error.message}`);
@@ -51,18 +72,19 @@ router.get('/tasks/new', (req, res) => {
     title: 'Audie - New Task',
     task: {},
     isNew: true,
-    page: 'tasks'
+    page: 'tasks',
+    user: req.user
   });
 });
 
 // Edit task form
 router.get('/tasks/edit/:id', async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findByIdAndUserId(req.params.id, req.user.id);
     
     if (!task) {
       return res.status(404).render('error', {
-        message: 'Task not found',
+        message: 'Task not found or access denied',
         error: { status: 404 }
       });
     }
@@ -71,7 +93,8 @@ router.get('/tasks/edit/:id', async (req, res) => {
       title: 'Audie - Edit Task',
       task,
       isNew: false,
-      page: 'tasks'
+      page: 'tasks',
+      user: req.user
     });
   } catch (error) {
     logger.error(`Error loading task edit form: ${error.message}`);
@@ -86,7 +109,8 @@ router.get('/tasks/edit/:id', async (req, res) => {
 router.get('/estimates', (req, res) => {
   res.render('estimates', {
     title: 'Audie - Estimates & Invoices',
-    page: 'estimates'
+    page: 'estimates',
+    user: req.user
   });
 });
 
@@ -94,7 +118,8 @@ router.get('/estimates', (req, res) => {
 router.get('/clients', (req, res) => {
   res.render('clients', {
     title: 'Audie - Clients',
-    page: 'clients'
+    page: 'clients',
+    user: req.user
   });
 });
 
@@ -102,7 +127,8 @@ router.get('/clients', (req, res) => {
 router.get('/settings', (req, res) => {
   res.render('settings', {
     title: 'Audie - Settings',
-    page: 'settings'
+    page: 'settings',
+    user: req.user
   });
 });
 
@@ -110,7 +136,8 @@ router.get('/settings', (req, res) => {
 router.get('/chat', (req, res) => {
   res.render('chat', {
     title: 'Audie - Chat',
-    page: 'chat'
+    page: 'chat',
+    user: req.user
   });
 });
 

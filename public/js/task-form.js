@@ -1,108 +1,92 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
-  const taskForm = document.getElementById('taskForm');
+  // Initialize Authentication
+  if (!AuthService.isAuthenticated()) {
+    AuthService.redirectToLogin();
+    return;
+  }
   
-  // Handle form submission
-  const handleFormSubmit = async (e) => {
+  const taskForm = document.getElementById('taskForm');
+  const saveTaskBtn = document.getElementById('saveTaskBtn');
+  const deleteTaskBtn = document.getElementById('deleteTaskBtn');
+  const taskId = document.getElementById('taskId')?.value;
+  const logoutBtn = document.getElementById('logoutBtn');
+  
+  // Handle logout
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      AuthService.logout();
+    });
+  }
+  
+  // Save task
+  const saveTask = async (e) => {
     e.preventDefault();
     
-    // Get form data
     const formData = new FormData(taskForm);
-    const taskData = {
-      title: formData.get('title'),
-      description: formData.get('description'),
-      status: formData.get('status'),
-      priority: formData.get('priority'),
-      due_date: formData.get('due_date'),
-      assigned_to: formData.get('assigned_to'),
-      client_id: formData.get('client_id') || null
-    };
+    const taskData = {};
     
-    // Validate title
-    if (!taskData.title) {
-      alert('Task title is required');
+    // Convert FormData to regular object
+    for (const [key, value] of formData.entries()) {
+      taskData[key] = value;
+    }
+    
+    // Validate required fields
+    if (!taskData.title?.trim()) {
+      alert('Title is required');
       return;
     }
     
     try {
-      // Determine if it's an update or create
-      const isUpdate = taskForm.getAttribute('action').includes('/api/tasks/');
-      let url = isUpdate ? taskForm.getAttribute('action') : '/api/tasks';
-      let method = isUpdate ? 'PUT' : 'POST';
+      let response;
       
-      // Handle method override for forms
-      if (formData.get('_method')) {
-        method = formData.get('_method');
+      if (taskId) {
+        // Update existing task
+        response = await TaskApi.updateTask(taskId, taskData);
+      } else {
+        // Create new task
+        response = await TaskApi.createTask(taskData);
       }
       
-      // Send request
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(taskData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error saving task');
-      }
-      
-      // Redirect to tasks page on success
+      // Redirect to tasks list
       window.location.href = '/tasks';
     } catch (error) {
-      console.error('Error submitting form:', error);
-      alert(`Error: ${error.message || 'Failed to save task'}`);
+      console.error('Error saving task:', error);
+      alert(`Error saving task: ${error.message || 'Unknown error'}`);
     }
   };
   
-  // Fetch clients for dropdown
-  const fetchClients = async () => {
-    const clientSelect = document.getElementById('taskClient');
-    if (!clientSelect) return;
+  // Delete task
+  const deleteTask = async () => {
+    if (!taskId) return;
+    
+    if (!confirm('Are you sure you want to delete this task?')) {
+      return;
+    }
     
     try {
-      const response = await fetch('/api/clients');
+      await TaskApi.deleteTask(taskId);
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch clients');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        // Clear options (keep the default none option)
-        const noneOption = clientSelect.querySelector('option[value=""]');
-        clientSelect.innerHTML = '';
-        clientSelect.appendChild(noneOption);
-        
-        // Add client options
-        data.data.forEach(client => {
-          const option = document.createElement('option');
-          option.value = client.id;
-          option.textContent = client.name;
-          
-          // Set selected if matches current client_id
-          const currentClientId = taskForm.getAttribute('data-client-id');
-          if (currentClientId && currentClientId === client.id.toString()) {
-            option.selected = true;
-          }
-          
-          clientSelect.appendChild(option);
-        });
-      }
+      // Redirect to tasks list
+      window.location.href = '/tasks';
     } catch (error) {
-      console.error('Error fetching clients:', error);
-      // Don't show alert, just log the error
+      console.error('Error deleting task:', error);
+      alert(`Error deleting task: ${error.message || 'Unknown error'}`);
     }
   };
   
-  // Event: Form submission
+  // Event: Save task form submission
   if (taskForm) {
-    taskForm.addEventListener('submit', handleFormSubmit);
+    taskForm.addEventListener('submit', saveTask);
   }
   
-  // Initialize
-  fetchClients();
+  // Event: Save task button click
+  if (saveTaskBtn) {
+    saveTaskBtn.addEventListener('click', saveTask);
+  }
+  
+  // Event: Delete task button click
+  if (deleteTaskBtn) {
+    deleteTaskBtn.addEventListener('click', deleteTask);
+  }
 }); 

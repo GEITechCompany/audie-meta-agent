@@ -145,6 +145,45 @@ function setupRemainingTables(database, resolve, reject) {
             return reject(err);
           }
 
+    // Create users table for authentication
+    database.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        role TEXT NOT NULL DEFAULT 'user', 
+        last_login TIMESTAMP,
+        login_attempts INTEGER DEFAULT 0,
+        locked_until TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `, (err) => {
+      if (err) {
+        logger.error(`Error creating users table: ${err.message}`);
+        return reject(err);
+      }
+
+    // Create refresh tokens table for JWT authentication
+    database.run(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked BOOLEAN DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      )
+    `, (err) => {
+      if (err) {
+        logger.error(`Error creating refresh_tokens table: ${err.message}`);
+        return reject(err);
+      }
+
     // Create logs table
     database.run(`
       CREATE TABLE IF NOT EXISTS logs (
@@ -209,6 +248,9 @@ function setupRemainingTables(database, resolve, reject) {
         logger.info('Database setup completed successfully');
         resolve();
       });
+      });
+      });
+        });
       });
       });
         });

@@ -7,10 +7,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusFilterBtns = document.querySelectorAll('input[name="statusFilter"]');
   const taskSearchInput = document.getElementById('taskSearchInput');
   const taskSearchBtn = document.getElementById('taskSearchBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
   
   // Delete task modal
   let deleteTaskModal;
   let taskIdToDelete;
+  
+  // Initialize Authentication
+  if (!AuthService.isAuthenticated()) {
+    AuthService.redirectToLogin();
+    return;
+  }
+  
+  // Handle logout
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      AuthService.logout();
+    });
+  }
   
   // Initialize Bootstrap components
   if (document.getElementById('deleteTaskModal')) {
@@ -25,14 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Delete task
   const deleteTask = async (taskId) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete task');
-      }
-      
+      await TaskApi.deleteTask(taskId);
       refreshTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -43,19 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Complete task
   const completeTask = async (taskId) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: 'completed'
-        })
+      await TaskApi.updateTask(taskId, {
+        status: 'completed'
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to complete task');
-      }
       
       refreshTasks();
     } catch (error) {

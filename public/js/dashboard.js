@@ -17,9 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = document.getElementById('refreshBtn');
   const morningBriefBtn = document.getElementById('morningBriefBtn');
   const checkEmailsBtn = document.getElementById('checkEmailsBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
   
   // Initialize Bootstrap components
   const taskModal = new bootstrap.Modal(document.getElementById('taskModal'));
+  
+  // Initialize Authentication
+  if (!AuthService.isAuthenticated()) {
+    AuthService.redirectToLogin();
+    return;
+  }
+  
+  // Handle logout
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      AuthService.logout();
+    });
+  }
   
   // Toggle chat visibility
   let chatOpen = true;
@@ -43,20 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const typingIndicator = addTypingIndicator();
     
     try {
-      // Send message to server (Audie)
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
+      // Send message to server (Audie) using API client
+      const data = await ChatApi.sendMessage(message);
       
       // Remove typing indicator
       typingIndicator.remove();
@@ -143,12 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Refresh tasks
   const refreshTasks = async () => {
     try {
-      const response = await fetch('/api/tasks');
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
+      const response = await TaskApi.getTasks();
       
       // Reload the page to refresh task lists
       // In a production app, we would update the DOM directly
@@ -199,25 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     try {
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: taskTitle,
-          description: taskDescription,
-          priority: taskPriority,
-          due_date: taskDueDate,
-          assigned_to: taskAssignedTo,
-          status: 'pending',
-          source: 'dashboard'
-        })
+      const response = await TaskApi.createTask({
+        title: taskTitle,
+        description: taskDescription,
+        priority: taskPriority,
+        due_date: taskDueDate,
+        assigned_to: taskAssignedTo,
+        status: 'pending',
+        source: 'dashboard'
       });
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
       
       // Close modal and reset form
       taskModal.hide();
@@ -237,25 +225,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Complete task
   const completeTask = async (taskId) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: 'completed'
-        })
+      const response = await TaskApi.updateTask(taskId, {
+        status: 'completed'
       });
       
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      // Refresh task list
+      // Refresh tasks
       refreshTasks();
-      
-      // Add confirmation message to chat
-      addMessageToChat('assistant', 'Task marked as completed.');
     } catch (error) {
       console.error('Error completing task:', error);
       alert('Error completing task. Please try again.');
@@ -264,47 +239,41 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Request morning brief
   const requestMorningBrief = async () => {
+    // Show typing indicator
+    const typingIndicator = addTypingIndicator();
+    
     try {
-      // Show typing indicator
-      const typingIndicator = addTypingIndicator();
-      
-      const response = await fetch('/api/morning-brief');
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
+      const data = await ChatApi.getMorningBrief();
       
       // Remove typing indicator
       typingIndicator.remove();
       
       // Add morning brief to chat
       addMessageToChat('assistant', data.message);
+      
+      // Handle any actions
+      if (data.actions && data.actions.length > 0) {
+        handleAudieActions(data.actions);
+      }
     } catch (error) {
-      console.error('Error getting morning brief:', error);
-      addMessageToChat('assistant', 'Sorry, I couldn\'t generate your morning brief right now.');
+      console.error('Error requesting morning brief:', error);
+      typingIndicator.remove();
+      addMessageToChat('assistant', 'Sorry, I encountered an error generating your morning brief.');
     }
   };
   
   // Check emails
   const checkEmails = async () => {
+    // Show typing indicator
+    const typingIndicator = addTypingIndicator();
+    
     try {
-      // Show typing indicator
-      const typingIndicator = addTypingIndicator();
-      
-      const response = await fetch('/api/check-emails');
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
+      const data = await ChatApi.checkEmails();
       
       // Remove typing indicator
       typingIndicator.remove();
       
-      // Add email summary to chat
+      // Add morning brief to chat
       addMessageToChat('assistant', data.message);
       
       // Update inbox feed
@@ -313,13 +282,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error('Error checking emails:', error);
-      addMessageToChat('assistant', 'Sorry, I couldn\'t check your emails right now.');
+      typingIndicator.remove();
+      addMessageToChat('assistant', 'Sorry, I encountered an error checking your emails.');
     }
   };
   
-  // Event listeners
+  // Event: Send message button click
   sendMessageBtn.addEventListener('click', sendMessage);
   
+  // Event: Message input enter key
   messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -327,20 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
-  refreshBtn.addEventListener('click', refreshTasks);
-  
-  morningBriefBtn.addEventListener('click', requestMorningBrief);
-  
-  checkEmailsBtn.addEventListener('click', checkEmails);
-  
-  newTaskBtn.addEventListener('click', () => {
-    taskForm.reset();
-    taskModal.show();
-  });
-  
-  saveTaskBtn.addEventListener('click', createTask);
-  
-  // Add event listeners to complete task buttons
+  // Event: Complete task button click
   completeTaskBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const taskId = btn.getAttribute('data-task-id');
@@ -349,4 +307,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+  
+  // Event: Save task button click
+  if (saveTaskBtn) {
+    saveTaskBtn.addEventListener('click', createTask);
+  }
+  
+  // Event: Morning brief button click
+  if (morningBriefBtn) {
+    morningBriefBtn.addEventListener('click', requestMorningBrief);
+  }
+  
+  // Event: Check emails button click
+  if (checkEmailsBtn) {
+    checkEmailsBtn.addEventListener('click', checkEmails);
+  }
+  
+  // Event: Refresh button click
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', refreshTasks);
+  }
 }); 
