@@ -49,19 +49,19 @@ function closeDatabase() {
 async function setupDatabase() {
   return new Promise((resolve, reject) => {
     try {
-    const database = getDatabase();
-    
+      const database = getDatabase();
+      
       // Create tasks table with error handling
-    database.run(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL,
-        priority TEXT NOT NULL,
-        due_date TIMESTAMP,
-        assigned_to TEXT,
-        client_id INTEGER,
+      database.run(`
+        CREATE TABLE IF NOT EXISTS tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          due_date TIMESTAMP,
+          assigned_to TEXT,
+          client_id INTEGER,
           source TEXT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -102,160 +102,159 @@ function setupRemainingTables(database, resolve, reject) {
         return reject(err);
       }
 
-    // Create estimates table
-    database.run(`
-      CREATE TABLE IF NOT EXISTS estimates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL,
-        total_amount REAL NOT NULL,
+      // Create estimates table
+      database.run(`
+        CREATE TABLE IF NOT EXISTS estimates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL,
+          total_amount REAL NOT NULL,
           valid_until TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES clients (id)
-      )
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (client_id) REFERENCES clients (id)
+        )
       `, (err) => {
         if (err) {
           logger.error(`Error creating estimates table: ${err.message}`);
           return reject(err);
         }
 
-    // Create invoices table
-    database.run(`
-      CREATE TABLE IF NOT EXISTS invoices (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER NOT NULL,
-        estimate_id INTEGER,
-        invoice_number TEXT NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL,
-        total_amount REAL NOT NULL,
-        due_date TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES clients (id),
-        FOREIGN KEY (estimate_id) REFERENCES estimates (id)
-      )
+        // Create invoices table
+        database.run(`
+          CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            estimate_id INTEGER,
+            invoice_number TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL,
+            total_amount REAL NOT NULL,
+            due_date TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients (id),
+            FOREIGN KEY (estimate_id) REFERENCES estimates (id)
+          )
         `, (err) => {
           if (err) {
             logger.error(`Error creating invoices table: ${err.message}`);
             return reject(err);
           }
 
-    // Create users table for authentication
-    database.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        first_name TEXT,
-        last_name TEXT,
-        role TEXT NOT NULL DEFAULT 'user', 
-        last_login TIMESTAMP,
-        login_attempts INTEGER DEFAULT 0,
-        locked_until TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) {
-        logger.error(`Error creating users table: ${err.message}`);
-        return reject(err);
-      }
-
-    // Create refresh tokens table for JWT authentication
-    database.run(`
-      CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        token TEXT NOT NULL UNIQUE,
-        user_id INTEGER NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        revoked BOOLEAN DEFAULT 0,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-      )
-    `, (err) => {
-      if (err) {
-        logger.error(`Error creating refresh_tokens table: ${err.message}`);
-        return reject(err);
-      }
-
-    // Create logs table
-    database.run(`
-      CREATE TABLE IF NOT EXISTS logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        level TEXT NOT NULL,
-        message TEXT NOT NULL,
-        metadata TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) {
-              logger.error(`Error creating logs table: ${err.message}`);
+          // Create users table for authentication
+          database.run(`
+            CREATE TABLE IF NOT EXISTS users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT NOT NULL UNIQUE,
+              email TEXT NOT NULL UNIQUE,
+              password TEXT NOT NULL,
+              first_name TEXT,
+              last_name TEXT,
+              role TEXT NOT NULL DEFAULT 'user', 
+              last_login TIMESTAMP,
+              login_attempts INTEGER DEFAULT 0,
+              locked_until TIMESTAMP,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `, (err) => {
+            if (err) {
+              logger.error(`Error creating users table: ${err.message}`);
               return reject(err);
             }
 
-    // Create API metrics table
-    database.run(`
-      CREATE TABLE IF NOT EXISTS api_metrics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        endpoint TEXT NOT NULL,
-        method TEXT,
-        status INTEGER,
-        source TEXT NOT NULL,
-        is_mock BOOLEAN NOT NULL DEFAULT 0,
-        duration INTEGER,
-        error_type TEXT,
-        error_message TEXT,
-        request_data TEXT,
-        response_data TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) {
-        logger.error(`Error creating api_metrics table: ${err.message}`);
-        return reject(err);
-      }
+            // Create refresh tokens table for JWT authentication
+            database.run(`
+              CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL UNIQUE,
+                user_id INTEGER NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                revoked BOOLEAN DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+              )
+            `, (err) => {
+              if (err) {
+                logger.error(`Error creating refresh_tokens table: ${err.message}`);
+                return reject(err);
+              }
 
-    // Create API metrics summary table for aggregated data
-    database.run(`
-      CREATE TABLE IF NOT EXISTS api_metrics_summary (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        endpoint TEXT NOT NULL,
-        date TEXT NOT NULL,
-        total_calls INTEGER NOT NULL DEFAULT 0,
-        successful_calls INTEGER NOT NULL DEFAULT 0,
-        failed_calls INTEGER NOT NULL DEFAULT 0,
-        mock_calls INTEGER NOT NULL DEFAULT 0,
-        real_calls INTEGER NOT NULL DEFAULT 0,
-        avg_duration REAL,
-        max_duration INTEGER,
-        min_duration INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(endpoint, date)
-      )
-    `, (err) => {
-      if (err) {
-        logger.error(`Error creating api_metrics_summary table: ${err.message}`);
-        return reject(err);
-      }
-            
-        logger.info('Database setup completed successfully');
-        resolve();
-      });
-      });
-      });
-        });
-      });
-      });
-        });
-      });
-    });
+              // Create logs table
+              database.run(`
+                CREATE TABLE IF NOT EXISTS logs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  level TEXT NOT NULL,
+                  message TEXT NOT NULL,
+                  metadata TEXT,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+              `, (err) => {
+                if (err) {
+                  logger.error(`Error creating logs table: ${err.message}`);
+                  return reject(err);
+                }
+
+                // Create API metrics table
+                database.run(`
+                  CREATE TABLE IF NOT EXISTS api_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    endpoint TEXT NOT NULL,
+                    method TEXT,
+                    status INTEGER,
+                    source TEXT NOT NULL,
+                    is_mock BOOLEAN NOT NULL DEFAULT 0,
+                    duration INTEGER,
+                    error_type TEXT,
+                    error_message TEXT,
+                    request_data TEXT,
+                    response_data TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                  )
+                `, (err) => {
+                  if (err) {
+                    logger.error(`Error creating api_metrics table: ${err.message}`);
+                    return reject(err);
+                  }
+
+                  // Create API metrics summary table for aggregated data
+                  database.run(`
+                    CREATE TABLE IF NOT EXISTS api_metrics_summary (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      endpoint TEXT NOT NULL,
+                      date TEXT NOT NULL,
+                      total_calls INTEGER NOT NULL DEFAULT 0,
+                      successful_calls INTEGER NOT NULL DEFAULT 0,
+                      failed_calls INTEGER NOT NULL DEFAULT 0,
+                      mock_calls INTEGER NOT NULL DEFAULT 0,
+                      real_calls INTEGER NOT NULL DEFAULT 0,
+                      avg_duration REAL,
+                      max_duration INTEGER,
+                      min_duration INTEGER,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      UNIQUE(endpoint, date)
+                    )
+                  `, (err) => {
+                    if (err) {
+                      logger.error(`Error creating api_metrics_summary table: ${err.message}`);
+                      return reject(err);
+                    }
+                    
+                    logger.info('Database setup completed successfully');
+                    resolve();
+                  }); // api_metrics_summary
+                }); // api_metrics
+              }); // logs
+            }); // refresh_tokens
+          }); // users
+        }); // invoices
+      }); // estimates
+    }); // clients
   } catch (error) {
     logger.error(`Error in setupRemainingTables: ${error.message}`);
     reject(error);

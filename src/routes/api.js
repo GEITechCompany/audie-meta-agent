@@ -35,6 +35,10 @@ router.use(authenticate);
 // Process chat message
 router.post('/chat', apiLimiter, chatController.processMessage.bind(chatController));
 
+// User preferences and conversation management
+router.post('/chat/preferences', apiLimiter, chatController.setUserPreferences.bind(chatController));
+router.post('/chat/reset', apiLimiter, chatController.resetConversation.bind(chatController));
+
 // Get morning brief
 router.get('/morning-brief', apiLimiter, chatController.getMorningBrief.bind(chatController));
 

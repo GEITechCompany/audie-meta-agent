@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const logger = require('../utils/logger');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate, hasRole } = require('../middleware/authMiddleware');
 const { apiLimiter } = require('../middleware/rateLimitMiddleware');
 
 /**
@@ -15,7 +15,7 @@ const { apiLimiter } = require('../middleware/rateLimitMiddleware');
  * @desc Get all users
  * @access Private/Admin
  */
-router.get('/', authenticate, authorize(['admin']), apiLimiter, async (req, res) => {
+router.get('/', authenticate, hasRole(['admin']), apiLimiter, async (req, res) => {
   try {
     const filters = {
       role: req.query.role
@@ -43,7 +43,7 @@ router.get('/', authenticate, authorize(['admin']), apiLimiter, async (req, res)
  * @desc Get user by ID
  * @access Private/Admin
  */
-router.get('/:id', authenticate, authorize(['admin']), apiLimiter, async (req, res) => {
+router.get('/:id', authenticate, hasRole(['admin']), apiLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
@@ -73,7 +73,7 @@ router.get('/:id', authenticate, authorize(['admin']), apiLimiter, async (req, r
  * @desc Update user
  * @access Private/Admin
  */
-router.put('/:id', authenticate, authorize(['admin']), apiLimiter, async (req, res) => {
+router.put('/:id', authenticate, hasRole(['admin']), apiLimiter, async (req, res) => {
   try {
     const userId = req.params.id;
     const user = await User.findById(userId);
@@ -120,7 +120,7 @@ router.put('/:id', authenticate, authorize(['admin']), apiLimiter, async (req, r
  * @desc Delete user
  * @access Private/Admin
  */
-router.delete('/:id', authenticate, authorize(['admin']), apiLimiter, async (req, res) => {
+router.delete('/:id', authenticate, hasRole(['admin']), apiLimiter, async (req, res) => {
   try {
     const userId = req.params.id;
     

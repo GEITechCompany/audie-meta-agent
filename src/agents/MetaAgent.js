@@ -2,6 +2,9 @@ const logger = require('../utils/logger');
 const Task = require('../models/Task');
 const SchedulerAgent = require('./SchedulerAgent');
 const InboxAgent = require('./InboxAgent');
+const nlpService = require('../services/NlpService');
+const conversationContext = require('../services/ConversationContextManager');
+const nlgService = require('../services/NlgService');
 
 /**
  * MetaAgent (Audie) - The central intelligence and coordinator
@@ -20,42 +23,89 @@ class MetaAgent {
   /**
    * Process a user message and route to appropriate sub-agents
    * @param {string} message - The user's message to Audie
+   * @param {object} userInfo - User information including ID
    * @returns {Promise<object>} Response object with message and actions
    */
-  async processMessage(message) {
+  async processMessage(message, userInfo = {}) {
     try {
-      logger.info(`Processing message: "${message.substring(0, 50)}..."`);
+      const userId = userInfo.userId || 'default';
+      logger.info(`Processing message for user ${userId}: "${message.substring(0, 50)}..."`);
       
-      // Analyze intent
-      const intent = this.analyzeIntent(message);
+      // Check for conversation context and resolve references
+      const { resolvedMessage, references } = conversationContext.resolveReferences(userId, message);
+      
+      // Analyze intent with NLP service
+      const intent = nlpService.detectIntent(resolvedMessage, userId);
+      logger.info(`Detected intent: ${intent.type} with confidence ${intent.confidence}`);
+      
+      // Check if clarification is needed
+      const clarification = conversationContext.checkForClarification(userId, resolvedMessage, intent);
+      if (clarification && clarification.needed) {
+        // Add clarification request to conversation context
+        conversationContext.addMessage(userId, 'system', clarification.message, {
+          clarification: true,
+          intent: intent
+        });
+        
+        return {
+          message: clarification.message,
+          actions: [],
+          needsMoreInfo: true
+        };
+      }
+      
+      // Store conversation context
+      conversationContext.addMessage(userId, 'user', message, {
+        intent: intent.type,
+        entities: intent.data,
+        resolvedReferences: references
+      });
       
       // Route to appropriate handler based on intent
       let response;
       switch (intent.type) {
         case 'task_create':
-          response = await this.handleTaskCreation(intent.data);
+          response = await this.handleTaskCreation(intent.data, userId);
           break;
         case 'task_query':
-          response = await this.handleTaskQuery(intent.data);
+          response = await this.handleTaskQuery(intent.data, userId);
+          break;
+        case 'task_update':
+          response = await this.handleTaskUpdate(intent.data, userId);
+          break;
+        case 'task_delete':
+          response = await this.handleTaskDeletion(intent.data, userId);
           break;
         case 'schedule_query':
-          response = await this.schedulerAgent.getSchedule(intent.data);
+          response = await this.schedulerAgent.getSchedule(intent.data, userId);
           break;
         case 'email_check':
-          response = await this.inboxAgent.checkEmails(intent.data);
+          response = await this.inboxAgent.checkEmails(intent.data, userId);
           break;
         default:
           response = {
-            message: "I'm not sure how to help with that. Could you please clarify?",
+            message: nlgService.generateResponse('error', { error: 'not_understood' }, {
+              category: 'not_understood',
+              userId
+            }),
             actions: []
           };
       }
       
+      // Store agent response in conversation context
+      conversationContext.addMessage(userId, 'system', response.message, {
+        intent: intent.type,
+        result: response,
+        options: response.options
+      });
+      
       return response;
     } catch (error) {
-      logger.error(`Error processing message: ${error.message}`);
+      logger.error(`Error processing message: ${error.message}`, { error });
       return {
-        message: "I encountered an error while processing your request. Please try again.",
+        message: nlgService.generateResponse('error', { error: error.message }, {
+          category: 'general'
+        }),
         error: error.message,
         actions: []
       };
@@ -63,210 +113,55 @@ class MetaAgent {
   }
 
   /**
-   * Analyze user message to determine intent
-   * @param {string} message - User message
-   * @returns {object} Intent object with type and extracted data
-   */
-  analyzeIntent(message) {
-    // Simple keyword-based intent detection - would be replaced with NLP in production
-    const lowerMessage = message.toLowerCase();
-    
-    // Task creation intent
-    if (lowerMessage.includes('create task') || lowerMessage.includes('add task') || 
-        lowerMessage.includes('new task')) {
-      return {
-        type: 'task_create',
-        data: this.extractTaskData(message)
-      };
-    }
-    
-    // Task query intent
-    if (lowerMessage.includes('show tasks') || lowerMessage.includes('list tasks') || 
-        lowerMessage.includes('what tasks') || lowerMessage.includes('pending tasks')) {
-      return {
-        type: 'task_query',
-        data: {
-          filters: this.extractTaskFilters(message)
-        }
-      };
-    }
-    
-    // Schedule query intent
-    if (lowerMessage.includes('schedule') || lowerMessage.includes('calendar') || 
-        lowerMessage.includes('appointments')) {
-      return {
-        type: 'schedule_query',
-        data: {
-          timeframe: this.extractTimeframe(message)
-        }
-      };
-    }
-    
-    // Email check intent
-    if (lowerMessage.includes('check email') || lowerMessage.includes('new email') || 
-        lowerMessage.includes('emails')) {
-      return {
-        type: 'email_check',
-        data: {
-          count: 5 // Default to checking 5 recent emails
-        }
-      };
-    }
-    
-    // Default intent
-    return {
-      type: 'general_query',
-      data: { message }
-    };
-  }
-
-  /**
-   * Extract task data from user message
-   * @param {string} message - User message
-   * @returns {object} Extracted task data
-   */
-  extractTaskData(message) {
-    // This is a simplified extraction - would use NLP in production
-    const titleMatch = message.match(/task\s+(to|about|for)?\s*(.+?)(?:due|by|before|with priority|$)/i);
-    const title = titleMatch ? titleMatch[2].trim() : 'New Task';
-    
-    const priorityMatch = message.match(/priority\s+(high|medium|low)/i);
-    const priority = priorityMatch ? priorityMatch[1].toLowerCase() : 'medium';
-    
-    // Simple date extraction - would use a proper date parser in production
-    const dueDateMatch = message.match(/due\s+(today|tomorrow|next week|on .+?)(?:with|$)/i);
-    let dueDate = null;
-    
-    if (dueDateMatch) {
-      const dueDateText = dueDateMatch[1];
-      const today = new Date();
-      
-      if (dueDateText === 'today') {
-        dueDate = today.toISOString().split('T')[0];
-      } else if (dueDateText === 'tomorrow') {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        dueDate = tomorrow.toISOString().split('T')[0];
-      } else if (dueDateText === 'next week') {
-        const nextWeek = new Date(today);
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        dueDate = nextWeek.toISOString().split('T')[0];
-      }
-    }
-    
-    return {
-      title,
-      priority,
-      due_date: dueDate,
-      status: 'pending',
-      source: 'chat'
-    };
-  }
-
-  /**
-   * Extract task filters from user message
-   * @param {string} message - User message
-   * @returns {object} Extracted task filters
-   */
-  extractTaskFilters(message) {
-    const lowerMessage = message.toLowerCase();
-    const filters = {};
-    
-    // Status filters
-    if (lowerMessage.includes('pending')) filters.status = 'pending';
-    if (lowerMessage.includes('in progress')) filters.status = 'in_progress';
-    if (lowerMessage.includes('completed')) filters.status = 'completed';
-    
-    // Priority filters
-    if (lowerMessage.includes('high priority')) filters.priority = 'high';
-    if (lowerMessage.includes('medium priority')) filters.priority = 'medium';
-    if (lowerMessage.includes('low priority')) filters.priority = 'low';
-    
-    return filters;
-  }
-
-  /**
-   * Extract timeframe from user message
-   * @param {string} message - User message
-   * @returns {object} Extracted timeframe
-   */
-  extractTimeframe(message) {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('today')) {
-      return { type: 'day', value: 'today' };
-    } else if (lowerMessage.includes('tomorrow')) {
-      return { type: 'day', value: 'tomorrow' };
-    } else if (lowerMessage.includes('this week')) {
-      return { type: 'week', value: 'current' };
-    } else if (lowerMessage.includes('next week')) {
-      return { type: 'week', value: 'next' };
-    } else {
-      return { type: 'day', value: 'today' };
-    }
-  }
-
-  /**
-   * Handle task creation
-   * @param {object} taskData - Task data extracted from message
+   * Handle task creation requests
+   * @param {object} data - Extracted task data
+   * @param {string} userId - User ID
    * @returns {Promise<object>} Response object
    */
-  async handleTaskCreation(taskData) {
+  async handleTaskCreation(data, userId) {
     try {
-      const task = new Task(taskData);
-      await task.save();
-      
-      return {
-        message: `I've created a new task: "${task.title}"${task.due_date ? ` due on ${task.due_date}` : ''} with ${task.priority} priority.`,
-        taskId: task.id,
-        actions: [{
-          type: 'task_created',
-          data: task
-        }]
-      };
-    } catch (error) {
-      logger.error(`Error creating task: ${error.message}`);
-      return {
-        message: `I couldn't create that task: ${error.message}`,
-        error: error.message,
-        actions: []
-      };
-    }
-  }
-
-  /**
-   * Handle task query
-   * @param {object} queryData - Query data with filters
-   * @returns {Promise<object>} Response object with matching tasks
-   */
-  async handleTaskQuery(queryData) {
-    try {
-      const tasks = await Task.findAll(queryData.filters);
-      
-      if (tasks.length === 0) {
+      // Validate required fields
+      if (!data.title) {
         return {
-          message: "I didn't find any tasks matching your criteria.",
+          message: nlgService.generateResponse('clarification', { missing: 'a title for the task' }, {
+            category: 'missing_info',
+            userId
+          }),
           actions: []
         };
       }
       
-      // Format tasks for display
-      const taskList = tasks.map(task => 
-        `• ${task.title} (${task.priority} priority${task.due_date ? `, due: ${task.due_date}` : ''})`
-      ).join('\n');
+      const taskData = {
+        title: data.title,
+        priority: data.priority || 'medium',
+        due_date: data.date || null,
+        status: 'pending',
+        source: 'chat',
+        user_id: userId !== 'default' ? userId : null
+      };
+      
+      // Create task in database
+      const task = await Task.create(taskData);
       
       return {
-        message: `Here are the tasks I found:\n\n${taskList}`,
-        data: { tasks },
-        actions: [{
-          type: 'tasks_listed',
-          count: tasks.length
-        }]
+        message: nlgService.generateResponse('task_create', { title: task.title }, {
+          category: 'success',
+          userId
+        }),
+        actions: [
+          {
+            type: 'task_created',
+            task
+          }
+        ]
       };
     } catch (error) {
-      logger.error(`Error querying tasks: ${error.message}`);
+      logger.error(`Error creating task: ${error.message}`, { error });
       return {
-        message: `I couldn't retrieve the tasks: ${error.message}`,
+        message: nlgService.generateResponse('task_create', { error: error.message }, {
+          category: 'error',
+          userId
+        }),
         error: error.message,
         actions: []
       };
@@ -274,47 +169,53 @@ class MetaAgent {
   }
 
   /**
-   * Get morning brief with day summary
-   * @returns {Promise<object>} Morning brief data
+   * Handle task query requests
+   * @param {object} data - Query filters
+   * @param {string} userId - User ID
+   * @returns {Promise<object>} Response with matching tasks
    */
-  async getMorningBrief() {
+  async handleTaskQuery(data, userId) {
     try {
-      // Get today's tasks
-      const today = new Date().toISOString().split('T')[0];
-      const todayTasks = await Task.findAll({
-        due_date: today
-      });
+      // Apply filters from NLP extraction
+      const filters = data.filters || {};
       
-      // Get pending tasks
-      const pendingTasks = await Task.findAll({
-        status: 'pending'
-      });
+      // Add user filter for multi-user systems
+      if (userId !== 'default') {
+        filters.user_id = userId;
+      }
       
-      // Get today's schedule from scheduler agent
-      const schedule = await this.schedulerAgent.getSchedule({
-        type: 'day',
-        value: 'today'
-      });
+      // Query tasks from database
+      const tasks = await Task.findAll(filters);
       
-      // Check for new emails
-      const newEmails = await this.inboxAgent.getUnreadCount();
+      if (tasks.length === 0) {
+        return {
+          message: nlgService.generateResponse('task_query', {}, {
+            category: 'success_empty',
+            userId
+          }),
+          actions: []
+        };
+      }
       
       return {
-        message: this.formatMorningBrief(todayTasks, pendingTasks, schedule, newEmails),
-        data: {
-          todayTasks,
-          pendingTasks,
-          schedule,
-          newEmails
-        },
-        actions: [{
-          type: 'morning_brief_delivered'
-        }]
+        message: nlgService.generateResponse('task_query', { task_list: tasks }, {
+          category: 'success_with_tasks',
+          userId
+        }),
+        actions: [
+          {
+            type: 'tasks_fetched',
+            tasks
+          }
+        ]
       };
     } catch (error) {
-      logger.error(`Error generating morning brief: ${error.message}`);
+      logger.error(`Error querying tasks: ${error.message}`, { error });
       return {
-        message: `I couldn't generate your morning brief: ${error.message}`,
+        message: nlgService.generateResponse('task_query', { error: error.message }, {
+          category: 'error',
+          userId
+        }),
         error: error.message,
         actions: []
       };
@@ -322,70 +223,184 @@ class MetaAgent {
   }
 
   /**
-   * Format morning brief message
-   * @param {Array} todayTasks - Today's tasks
-   * @param {Array} pendingTasks - Pending tasks
-   * @param {object} schedule - Schedule data
-   * @param {number} newEmails - Count of new emails
-   * @returns {string} Formatted morning brief message
+   * Handle task update requests
+   * @param {object} data - Update data
+   * @param {string} userId - User ID
+   * @returns {Promise<object>} Response object
    */
-  formatMorningBrief(todayTasks, pendingTasks, schedule, newEmails) {
-    const date = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    
-    let brief = `Good morning! Here's your brief for ${date}:\n\n`;
-    
-    // Today's schedule
-    brief += `📅 TODAY'S SCHEDULE:\n`;
-    if (schedule.events && schedule.events.length > 0) {
-      schedule.events.forEach(event => {
-        brief += `• ${event.start_time} - ${event.title}\n`;
-      });
-    } else {
-      brief += `• No scheduled events for today\n`;
-    }
-    
-    // Today's tasks
-    brief += `\n✅ TODAY'S TASKS (${todayTasks.length}):\n`;
-    if (todayTasks.length > 0) {
-      todayTasks.forEach(task => {
-        brief += `• ${task.title} (${task.priority} priority)\n`;
-      });
-    } else {
-      brief += `• No tasks due today\n`;
-    }
-    
-    // Pending tasks
-    brief += `\n⏳ PENDING TASKS (${pendingTasks.length}):\n`;
-    if (pendingTasks.length > 0) {
-      // Show only first 5 pending tasks
-      const tasksToShow = pendingTasks.slice(0, 5);
-      tasksToShow.forEach(task => {
-        brief += `• ${task.title}${task.due_date ? ` (due: ${task.due_date})` : ''}\n`;
-      });
+  async handleTaskUpdate(data, userId) {
+    try {
+      // Get task title from data or context
+      const title = data.title;
       
-      if (pendingTasks.length > 5) {
-        brief += `• ...and ${pendingTasks.length - 5} more\n`;
+      if (!title) {
+        return {
+          message: nlgService.generateResponse('clarification', { missing: 'which task to update' }, {
+            category: 'missing_info',
+            userId
+          }),
+          actions: []
+        };
       }
-    } else {
-      brief += `• No pending tasks\n`;
+      
+      // Find the task
+      const filters = { title: { $like: `%${title}%` } };
+      if (userId !== 'default') {
+        filters.user_id = userId;
+      }
+      
+      const tasks = await Task.findAll(filters);
+      
+      if (tasks.length === 0) {
+        return {
+          message: nlgService.generateResponse('task_update', { error: `No task found matching "${title}"` }, {
+            category: 'error',
+            userId
+          }),
+          actions: []
+        };
+      }
+      
+      if (tasks.length > 1) {
+        // Multiple tasks found, ask for clarification
+        return {
+          message: nlgService.generateResponse('clarification', { 
+            options: tasks.map(t => t.title)
+          }, {
+            category: 'options',
+            userId
+          }),
+          actions: [],
+          options: tasks
+        };
+      }
+      
+      // Update the task
+      const task = tasks[0];
+      const updateData = {};
+      
+      if (data.priority) updateData.priority = data.priority;
+      if (data.status) updateData.status = data.status;
+      if (data.date) updateData.due_date = data.date;
+      
+      if (Object.keys(updateData).length === 0) {
+        return {
+          message: nlgService.generateResponse('clarification', { missing: 'what to update about the task' }, {
+            category: 'missing_info',
+            userId
+          }),
+          actions: []
+        };
+      }
+      
+      await task.update(updateData);
+      
+      return {
+        message: nlgService.generateResponse('task_update', { title: task.title }, {
+          category: 'success',
+          userId
+        }),
+        actions: [
+          {
+            type: 'task_updated',
+            task
+          }
+        ]
+      };
+    } catch (error) {
+      logger.error(`Error updating task: ${error.message}`, { error });
+      return {
+        message: nlgService.generateResponse('task_update', { error: error.message }, {
+          category: 'error',
+          userId
+        }),
+        error: error.message,
+        actions: []
+      };
     }
-    
-    // New emails
-    brief += `\n📬 INBOX: `;
-    if (newEmails > 0) {
-      brief += `You have ${newEmails} new emails\n`;
-    } else {
-      brief += `No new emails\n`;
+  }
+
+  /**
+   * Handle task deletion requests
+   * @param {object} data - Task data
+   * @param {string} userId - User ID
+   * @returns {Promise<object>} Response object
+   */
+  async handleTaskDeletion(data, userId) {
+    try {
+      // Get task title from data or context
+      const title = data.title;
+      
+      if (!title) {
+        return {
+          message: nlgService.generateResponse('clarification', { missing: 'which task to delete' }, {
+            category: 'missing_info',
+            userId
+          }),
+          actions: []
+        };
+      }
+      
+      // Find the task
+      const filters = { title: { $like: `%${title}%` } };
+      if (userId !== 'default') {
+        filters.user_id = userId;
+      }
+      
+      const tasks = await Task.findAll(filters);
+      
+      if (tasks.length === 0) {
+        return {
+          message: nlgService.generateResponse('task_delete', { error: `No task found matching "${title}"` }, {
+            category: 'error',
+            userId
+          }),
+          actions: []
+        };
+      }
+      
+      if (tasks.length > 1) {
+        // Multiple tasks found, ask for clarification
+        return {
+          message: nlgService.generateResponse('clarification', { 
+            options: tasks.map(t => t.title)
+          }, {
+            category: 'options',
+            userId
+          }),
+          actions: [],
+          options: tasks
+        };
+      }
+      
+      // Delete the task
+      const task = tasks[0];
+      const taskTitle = task.title;
+      await task.delete();
+      
+      return {
+        message: nlgService.generateResponse('task_delete', { title: taskTitle }, {
+          category: 'success',
+          userId
+        }),
+        actions: [
+          {
+            type: 'task_deleted',
+            taskId: task.id
+          }
+        ]
+      };
+    } catch (error) {
+      logger.error(`Error deleting task: ${error.message}`, { error });
+      return {
+        message: nlgService.generateResponse('task_delete', { error: error.message }, {
+          category: 'error',
+          userId
+        }),
+        error: error.message,
+        actions: []
+      };
     }
-    
-    brief += `\nHow can I help you today?`;
-    
-    return brief;
   }
 }
 

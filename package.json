@@ -26,6 +26,7 @@
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "express-rate-limit": "^7.5.0",
+    "fuzzysort": "^2.0.4",
     "googleapis": "^129.0.0",
     "jsonwebtoken": "^9.0.2",
     "node-schedule": "^2.1.1",

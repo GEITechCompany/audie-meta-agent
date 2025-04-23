@@ -24,13 +24,21 @@ class ChatController {
       
       logger.info(`Received chat message: ${message.substring(0, 50)}...`);
       
-      // Process message through meta-agent
-      const response = await this.metaAgent.processMessage(message);
+      // Get user information from the authenticated request
+      const userInfo = {
+        userId: req.user ? req.user.id : 'default',
+        userName: req.user ? req.user.name : null
+      };
+      
+      // Process message through meta-agent with user info
+      const response = await this.metaAgent.processMessage(message, userInfo);
       
       res.json({
         success: true,
         message: response.message,
-        actions: response.actions || []
+        actions: response.actions || [],
+        needsMoreInfo: response.needsMoreInfo || false,
+        options: response.options || null
       });
     } catch (error) {
       logger.error(`Error processing chat message: ${error.message}`);
@@ -137,6 +145,71 @@ class ChatController {
       res.status(500).json({
         success: false,
         error: 'Failed to get schedule',
+        message: error.message
+      });
+    }
+  }
+
+  /**
+   * Set user preferences for response generation
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  async setUserPreferences(req, res) {
+    try {
+      const { preferences } = req.body;
+      
+      if (!preferences || typeof preferences !== 'object') {
+        return res.status(400).json({
+          success: false,
+          error: 'Preferences object is required'
+        });
+      }
+      
+      // Get user ID from the authenticated request
+      const userId = req.user ? req.user.id : 'default';
+      
+      // Update user preferences in NLG service
+      const nlgService = require('../services/NlgService');
+      nlgService.setUserPreferences(userId, preferences);
+      
+      res.json({
+        success: true,
+        message: 'User preferences updated successfully'
+      });
+    } catch (error) {
+      logger.error(`Error setting user preferences: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update preferences',
+        message: error.message
+      });
+    }
+  }
+  
+  /**
+   * Reset conversation context for a user
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  async resetConversation(req, res) {
+    try {
+      // Get user ID from the authenticated request
+      const userId = req.user ? req.user.id : 'default';
+      
+      // Clear conversation context
+      const conversationContext = require('../services/ConversationContextManager');
+      conversationContext.clearContext(userId);
+      
+      res.json({
+        success: true,
+        message: 'Conversation context has been reset'
+      });
+    } catch (error) {
+      logger.error(`Error resetting conversation: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to reset conversation',
         message: error.message
       });
     }
